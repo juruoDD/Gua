@@ -16,6 +16,7 @@ namespace FrogCamp.UI
         [SerializeField] private Text announcementText;
         [SerializeField] private Button exitButton;
         [SerializeField] private Texture2D greenIdleTexture;
+        [SerializeField] private Texture2D greenHopTexture;
 
         private readonly Dictionary<string, FrogActorView> actorViews =
             new Dictionary<string, FrogActorView>();
@@ -46,6 +47,8 @@ namespace FrogCamp.UI
 #if UNITY_EDITOR
             greenIdleTexture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(
                 "Assets/Frog/待机.png");
+            greenHopTexture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(
+                "Assets/Frog/小跳.png");
 #endif
             CampUiFactory.EnsureEventSystem();
             Canvas canvas = CampUiFactory.CreateCanvas(transform);
@@ -128,7 +131,8 @@ namespace FrogCamp.UI
                 FrogActorView view;
                 if (!actorViews.TryGetValue(actor.id, out view))
                 {
-                    view = FrogActorView.Create(actorLayer, actor, greenIdleTexture);
+                    view = FrogActorView.Create(actorLayer, actor, greenIdleTexture,
+                        greenHopTexture);
                     actorViews.Add(actor.id, view);
                 }
                 view.Apply(actor);

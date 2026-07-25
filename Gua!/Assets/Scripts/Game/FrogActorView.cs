@@ -8,8 +8,9 @@ namespace FrogCamp.Gameplay
     {
         private RectTransform rect;
         private FrogGraphic graphic;
-        private RawImage idleImage;
+        private RawImage frameImage;
         private Texture2D idleTexture;
+        private Texture2D hopTexture;
         private Vector2 targetPosition;
         private int actionId = -1;
         private float localActionStart;
@@ -19,7 +20,7 @@ namespace FrogCamp.Gameplay
         public float SortY { get { return data == null ? 0f : data.y; } }
 
         public static FrogActorView Create(RectTransform parent, GameActorData actor,
-            Texture2D greenIdleTexture)
+            Texture2D greenIdleTexture, Texture2D greenHopTexture)
         {
             GameObject instance = new GameObject("Frog_" + actor.id,
                 typeof(RectTransform), typeof(CanvasRenderer), typeof(FrogGraphic),
@@ -31,17 +32,17 @@ namespace FrogCamp.Gameplay
             view.graphic = instance.GetComponent<FrogGraphic>();
             view.graphic.raycastTarget = false;
             view.idleTexture = greenIdleTexture;
-            if (greenIdleTexture != null)
+            view.hopTexture = greenHopTexture;
+            if (greenIdleTexture != null || greenHopTexture != null)
             {
-                GameObject idleObject = new GameObject("IdleAnimation",
+                GameObject frameObject = new GameObject("FrogFrameAnimation",
                     typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
-                idleObject.transform.SetParent(instance.transform, false);
-                RectTransform idleRect = idleObject.GetComponent<RectTransform>();
-                idleRect.anchorMin = idleRect.anchorMax = new Vector2(.5f, .5f);
-                idleRect.sizeDelta = new Vector2(82f, 82f);
-                view.idleImage = idleObject.GetComponent<RawImage>();
-                view.idleImage.texture = greenIdleTexture;
-                view.idleImage.raycastTarget = false;
+                frameObject.transform.SetParent(instance.transform, false);
+                RectTransform frameRect = frameObject.GetComponent<RectTransform>();
+                frameRect.anchorMin = frameRect.anchorMax = new Vector2(.5f, .5f);
+                frameRect.sizeDelta = new Vector2(82f, 82f);
+                view.frameImage = frameObject.GetComponent<RawImage>();
+                view.frameImage.raycastTarget = false;
             }
             view.ActorId = actor.id;
             view.Apply(actor, true);
@@ -76,24 +77,35 @@ namespace FrogCamp.Gameplay
             float duration = GameSimulation.ActionDuration(data.action);
             float progress = duration > 0f
                 ? Mathf.Clamp01((Time.unscaledTime - localActionStart) / duration) : 0f;
-            float hop = data.moving ? Mathf.Abs(Mathf.Sin(Time.unscaledTime * 7.5f)) : 0f;
+            bool canUseFrames = data.role != "officer" &&
+                                string.IsNullOrEmpty(data.action) && !data.stunned;
+            bool useHopFrames = frameImage != null && hopTexture != null &&
+                                canUseFrames && data.moving;
+            bool useIdleFrames = frameImage != null && idleTexture != null &&
+                                 canUseFrames && !data.moving;
+            float hop = data.moving && !useHopFrames
+                ? Mathf.Abs(Mathf.Sin(Time.unscaledTime * 7.5f)) : 0f;
             float jump = data.action == "jump" ? Mathf.Sin(progress * Mathf.PI) : 0f;
             float idle = !data.moving && string.IsNullOrEmpty(data.action)
                 ? Mathf.Sin(Time.unscaledTime * 4.5f) : 0f;
             rect.localScale = new Vector3(1f + idle * .018f,
                 1f - idle * .025f, 1f);
             rect.anchoredPosition += Vector2.up * (hop * 3f + jump * 12f);
-            bool useIdleFrames = idleImage != null && data.role != "officer" &&
-                                 !data.moving && string.IsNullOrEmpty(data.action) &&
-                                 !data.stunned;
-            graphic.enabled = !useIdleFrames;
-            if (idleImage != null)
+            bool useExternalFrames = useIdleFrames || useHopFrames;
+            graphic.enabled = !useExternalFrames;
+            if (frameImage != null)
             {
-                idleImage.enabled = useIdleFrames;
-                if (useIdleFrames)
+                frameImage.enabled = useExternalFrames;
+                if (useExternalFrames)
                 {
                     int frame = Mathf.FloorToInt(Time.unscaledTime * 8f) % 6;
-                    idleImage.uvRect = new Rect(frame / 6f, 0f, 1f / 6f, 1f);
+                    frameImage.texture = useHopFrames ? hopTexture : idleTexture;
+                    frameImage.uvRect = new Rect(frame / 6f, 0f, 1f / 6f, 1f);
+                    RectTransform frameRect = (RectTransform)frameImage.transform;
+                    frameRect.sizeDelta = useHopFrames
+                        ? new Vector2(82f, 164f) : new Vector2(82f, 82f);
+                    frameRect.anchoredPosition = useHopFrames
+                        ? new Vector2(0f, 38f) : Vector2.zero;
                 }
             }
             graphic.SetPose(data.role, data.action, progress, data.moving,
