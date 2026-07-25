@@ -15,8 +15,8 @@ namespace FrogCamp.UI
         [SerializeField] private Text statusText;
         [SerializeField] private Text announcementText;
         [SerializeField] private Button exitButton;
-        [SerializeField] private Texture2D greenIdleTexture;
-        [SerializeField] private Texture2D greenHopTexture;
+        [SerializeField] private FrogAnimationSet greenAnimations = new FrogAnimationSet();
+        [SerializeField] private FrogAnimationSet pinkAnimations = new FrogAnimationSet();
 
         private readonly Dictionary<string, FrogActorView> actorViews =
             new Dictionary<string, FrogActorView>();
@@ -45,10 +45,13 @@ namespace FrogCamp.UI
         public void BuildLayoutForEditor()
         {
 #if UNITY_EDITOR
-            greenIdleTexture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(
-                "Assets/Frog/待机.png");
-            greenHopTexture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(
-                "Assets/Frog/小跳.png");
+            greenAnimations.SetTextures(
+                LoadFrogTexture("待机"), LoadFrogTexture("小跳"), LoadFrogTexture("大跳"),
+                LoadFrogTexture("伸左手"), LoadFrogTexture("伸右手"),
+                LoadFrogTexture("伸左腿"), LoadFrogTexture("伸右腿"));
+            pinkAnimations.SetTextures(
+                LoadFrogTexture("粉色待机"), LoadFrogTexture("粉色小跳"),
+                LoadFrogTexture("粉色大跳"), null, null, null, null);
 #endif
             CampUiFactory.EnsureEventSystem();
             Canvas canvas = CampUiFactory.CreateCanvas(transform);
@@ -131,8 +134,8 @@ namespace FrogCamp.UI
                 FrogActorView view;
                 if (!actorViews.TryGetValue(actor.id, out view))
                 {
-                    view = FrogActorView.Create(actorLayer, actor, greenIdleTexture,
-                        greenHopTexture);
+                    view = FrogActorView.Create(actorLayer, actor, greenAnimations,
+                        pinkAnimations);
                     actorViews.Add(actor.id, view);
                 }
                 view.Apply(actor);
@@ -172,6 +175,14 @@ namespace FrogCamp.UI
                 new Vector2(0.05f, 0.20f), new Vector2(0.95f, 0.78f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter, true);
         }
+
+#if UNITY_EDITOR
+        private static Texture2D LoadFrogTexture(string fileName)
+        {
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(
+                "Assets/Frog/" + fileName + ".png");
+        }
+#endif
 
         private static void AddFlag(RectTransform map)
         {

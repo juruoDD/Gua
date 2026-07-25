@@ -13,6 +13,7 @@ namespace FrogCamp.Networking
         public const float MinY = 28f;
         public const float MaxY = 512f;
         public const float MoveSpeed = 42f;
+        public const float OfficerMoveSpeed = MoveSpeed;
         public const float ColliderRadius = 14f;
         public const float JumpDistance = 48f;
         public const float TongueRange = 44f;
@@ -88,8 +89,11 @@ namespace FrogCamp.Networking
                 if (actor.action == "jump")
                     Move(actor, actor.jumpX * deltaTime, actor.jumpY * deltaTime, actors);
                 else if (string.IsNullOrEmpty(actor.action))
-                    actor.moving = Move(actor, actor.inputX * MoveSpeed * deltaTime,
-                        actor.inputY * MoveSpeed * deltaTime, actors);
+                {
+                    float speed = actor.role == "officer" ? OfficerMoveSpeed : MoveSpeed;
+                    actor.moving = Move(actor, actor.inputX * speed * deltaTime,
+                        actor.inputY * speed * deltaTime, actors);
+                }
                 else actor.moving = false;
                 ResolveOfficerTongue(game, actor, now);
             }

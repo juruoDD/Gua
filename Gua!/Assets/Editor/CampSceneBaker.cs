@@ -14,7 +14,7 @@ namespace FrogCamp.Editor
         private const string StartPath = "Assets/Scenes/开始界面.unity";
         private const string LobbyPath = "Assets/Scenes/联机界面.unity";
         private const string GamePath = "Assets/Scenes/游戏界面.unity";
-        private const string SessionKey = "FrogCamp.EditableUiBakeV6";
+        private const string SessionKey = "FrogCamp.EditableUiBakeV7";
 
         static CampSceneBaker()
         {
@@ -88,8 +88,9 @@ namespace FrogCamp.Editor
                    SceneFileContainsEditableUi(LobbyPath) &&
                    SceneFileContainsEditableUi(GamePath) &&
                    File.ReadAllText(GamePath).Contains("m_Name: ActorLayer") &&
-                   File.ReadAllText(GamePath).Contains("guid: 0a3be05111c82504e8f6f645c8b46bad") &&
-                   File.ReadAllText(GamePath).Contains("guid: 6a22472a1e93a984bb3efe7dfe3a2c80");
+                   File.ReadAllText(GamePath).Contains("greenAnimations:") &&
+                   File.ReadAllText(GamePath).Contains("pinkAnimations:") &&
+                   File.ReadAllText(GamePath).Contains("jump: {fileID: 2800000");
         }
 
         private static bool SceneFileContainsEditableUi(string path)

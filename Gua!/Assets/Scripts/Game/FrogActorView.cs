@@ -9,8 +9,7 @@ namespace FrogCamp.Gameplay
         private RectTransform rect;
         private FrogGraphic graphic;
         private RawImage frameImage;
-        private Texture2D idleTexture;
-        private Texture2D hopTexture;
+        private FrogAnimationSet animations;
         private Vector2 targetPosition;
         private int actionId = -1;
         private float localActionStart;
@@ -20,7 +19,7 @@ namespace FrogCamp.Gameplay
         public float SortY { get { return data == null ? 0f : data.y; } }
 
         public static FrogActorView Create(RectTransform parent, GameActorData actor,
-            Texture2D greenIdleTexture, Texture2D greenHopTexture)
+            FrogAnimationSet greenAnimations, FrogAnimationSet pinkAnimations)
         {
             GameObject instance = new GameObject("Frog_" + actor.id,
                 typeof(RectTransform), typeof(CanvasRenderer), typeof(FrogGraphic),
@@ -31,9 +30,8 @@ namespace FrogCamp.Gameplay
             view.rect.sizeDelta = new Vector2(76f, 96f);
             view.graphic = instance.GetComponent<FrogGraphic>();
             view.graphic.raycastTarget = false;
-            view.idleTexture = greenIdleTexture;
-            view.hopTexture = greenHopTexture;
-            if (greenIdleTexture != null || greenHopTexture != null)
+            view.animations = actor.role == "officer" ? pinkAnimations : greenAnimations;
+            if (view.animations != null)
             {
                 GameObject frameObject = new GameObject("FrogFrameAnimation",
                     typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
@@ -77,35 +75,47 @@ namespace FrogCamp.Gameplay
             float duration = GameSimulation.ActionDuration(data.action);
             float progress = duration > 0f
                 ? Mathf.Clamp01((Time.unscaledTime - localActionStart) / duration) : 0f;
-            bool canUseFrames = data.role != "officer" &&
-                                string.IsNullOrEmpty(data.action) && !data.stunned;
-            bool useHopFrames = frameImage != null && hopTexture != null &&
-                                canUseFrames && data.moving;
-            bool useIdleFrames = frameImage != null && idleTexture != null &&
-                                 canUseFrames && !data.moving;
+            Texture2D actionTexture = animations == null
+                ? null : animations.GetActionTexture(data.action);
+            bool canUseFrames = frameImage != null && animations != null && !data.stunned;
+            bool useActionFrames = canUseFrames && actionTexture != null;
+            bool useHopFrames = canUseFrames && animations.Hop != null &&
+                                string.IsNullOrEmpty(data.action) && data.moving;
+            bool useIdleFrames = canUseFrames && animations.Idle != null &&
+                                 string.IsNullOrEmpty(data.action) && !data.moving;
             float hop = data.moving && !useHopFrames
                 ? Mathf.Abs(Mathf.Sin(Time.unscaledTime * 7.5f)) : 0f;
-            float jump = data.action == "jump" ? Mathf.Sin(progress * Mathf.PI) : 0f;
-            float idle = !data.moving && string.IsNullOrEmpty(data.action)
+            float jump = data.action == "jump" && !useActionFrames
+                ? Mathf.Sin(progress * Mathf.PI) : 0f;
+            float idle = !useIdleFrames && !data.moving && string.IsNullOrEmpty(data.action)
                 ? Mathf.Sin(Time.unscaledTime * 4.5f) : 0f;
             rect.localScale = new Vector3(1f + idle * .018f,
                 1f - idle * .025f, 1f);
             rect.anchoredPosition += Vector2.up * (hop * 3f + jump * 12f);
-            bool useExternalFrames = useIdleFrames || useHopFrames;
+            bool useExternalFrames = useIdleFrames || useHopFrames || useActionFrames;
             graphic.enabled = !useExternalFrames;
             if (frameImage != null)
             {
                 frameImage.enabled = useExternalFrames;
                 if (useExternalFrames)
                 {
-                    int frame = Mathf.FloorToInt(Time.unscaledTime * 8f) % 6;
-                    frameImage.texture = useHopFrames ? hopTexture : idleTexture;
-                    frameImage.uvRect = new Rect(frame / 6f, 0f, 1f / 6f, 1f);
+                    string state = useActionFrames ? data.action :
+                        (useHopFrames ? "hop" : "idle");
+                    int frameCount = FrogAnimationSet.GetFrameCount(state);
+                    int frame = useActionFrames
+                        ? Mathf.Min(frameCount - 1, Mathf.FloorToInt(progress * frameCount))
+                        : Mathf.FloorToInt(Time.unscaledTime * 8f) % frameCount;
+                    frameImage.texture = useActionFrames ? actionTexture :
+                        (useHopFrames ? animations.Hop : animations.Idle);
+                    frameImage.uvRect = new Rect(frame / (float)frameCount, 0f,
+                        1f / frameCount, 1f);
                     RectTransform frameRect = (RectTransform)frameImage.transform;
-                    frameRect.sizeDelta = useHopFrames
+                    bool tallFrame = useHopFrames || useActionFrames;
+                    frameRect.sizeDelta = tallFrame
                         ? new Vector2(82f, 164f) : new Vector2(82f, 82f);
                     frameRect.anchoredPosition = useHopFrames
-                        ? new Vector2(0f, 38f) : Vector2.zero;
+                        ? new Vector2(0f, 38f)
+                        : (useActionFrames ? new Vector2(0f, 21f) : Vector2.zero);
                 }
             }
             graphic.SetPose(data.role, data.action, progress, data.moving,
