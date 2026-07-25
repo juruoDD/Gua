@@ -1,5 +1,6 @@
 using FrogCamp.Networking;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace FrogCamp.Gameplay
 {
@@ -7,6 +8,8 @@ namespace FrogCamp.Gameplay
     {
         private RectTransform rect;
         private FrogGraphic graphic;
+        private RawImage idleImage;
+        private Texture2D idleTexture;
         private Vector2 targetPosition;
         private int actionId = -1;
         private float localActionStart;
@@ -15,7 +18,8 @@ namespace FrogCamp.Gameplay
         public string ActorId { get; private set; }
         public float SortY { get { return data == null ? 0f : data.y; } }
 
-        public static FrogActorView Create(RectTransform parent, GameActorData actor)
+        public static FrogActorView Create(RectTransform parent, GameActorData actor,
+            Texture2D greenIdleTexture)
         {
             GameObject instance = new GameObject("Frog_" + actor.id,
                 typeof(RectTransform), typeof(CanvasRenderer), typeof(FrogGraphic),
@@ -26,6 +30,19 @@ namespace FrogCamp.Gameplay
             view.rect.sizeDelta = new Vector2(76f, 96f);
             view.graphic = instance.GetComponent<FrogGraphic>();
             view.graphic.raycastTarget = false;
+            view.idleTexture = greenIdleTexture;
+            if (greenIdleTexture != null)
+            {
+                GameObject idleObject = new GameObject("IdleAnimation",
+                    typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                idleObject.transform.SetParent(instance.transform, false);
+                RectTransform idleRect = idleObject.GetComponent<RectTransform>();
+                idleRect.anchorMin = idleRect.anchorMax = new Vector2(.5f, .5f);
+                idleRect.sizeDelta = new Vector2(82f, 82f);
+                view.idleImage = idleObject.GetComponent<RawImage>();
+                view.idleImage.texture = greenIdleTexture;
+                view.idleImage.raycastTarget = false;
+            }
             view.ActorId = actor.id;
             view.Apply(actor, true);
             return view;
@@ -65,7 +82,20 @@ namespace FrogCamp.Gameplay
                 ? Mathf.Sin(Time.unscaledTime * 4.5f) : 0f;
             rect.localScale = new Vector3(1f + idle * .018f,
                 1f - idle * .025f, 1f);
-            rect.anchoredPosition += Vector2.up * (hop * 6f + jump * 24f);
+            rect.anchoredPosition += Vector2.up * (hop * 3f + jump * 12f);
+            bool useIdleFrames = idleImage != null && data.role != "officer" &&
+                                 !data.moving && string.IsNullOrEmpty(data.action) &&
+                                 !data.stunned;
+            graphic.enabled = !useIdleFrames;
+            if (idleImage != null)
+            {
+                idleImage.enabled = useIdleFrames;
+                if (useIdleFrames)
+                {
+                    int frame = Mathf.FloorToInt(Time.unscaledTime * 8f) % 6;
+                    idleImage.uvRect = new Rect(frame / 6f, 0f, 1f / 6f, 1f);
+                }
+            }
             graphic.SetPose(data.role, data.action, progress, data.moving,
                 data.stunned, Time.unscaledTime);
         }

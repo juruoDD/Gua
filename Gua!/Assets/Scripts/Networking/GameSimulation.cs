@@ -12,9 +12,9 @@ namespace FrogCamp.Networking
         public const float MaxX = 932f;
         public const float MinY = 28f;
         public const float MaxY = 512f;
-        public const float MoveSpeed = 76f;
+        public const float MoveSpeed = 42f;
         public const float ColliderRadius = 14f;
-        public const float JumpDistance = 90f;
+        public const float JumpDistance = 48f;
         public const float TongueRange = 44f;
         public const int NpcCount = 20;
 
