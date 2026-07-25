@@ -137,6 +137,11 @@ namespace FrogCamp.UI
         {
             if (font == null)
             {
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                    font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+#endif
+                if (font != null) return font;
                 font = Font.CreateDynamicFontFromOSFont(new[]
                 {
                     "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",

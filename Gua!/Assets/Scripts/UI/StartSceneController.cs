@@ -7,10 +7,32 @@ namespace FrogCamp.UI
 {
     public sealed class StartSceneController : MonoBehaviour
     {
-        private InputField nameInput;
-        private Text statusText;
+        [SerializeField] private InputField nameInput;
+        [SerializeField] private Text statusText;
+        [SerializeField] private Button createButton;
+        [SerializeField] private Button browseButton;
 
         private void Awake()
+        {
+            if (nameInput == null || statusText == null ||
+                createButton == null || browseButton == null)
+            {
+                Debug.LogError("开始界面的 UI 引用不完整，请重新烘焙场景或在 Inspector 中指定。");
+                enabled = false;
+                return;
+            }
+
+            nameInput.text = PlayerPrefs.GetString("frog_player_name", "");
+            createButton.onClick.AddListener(CreateRoom);
+            browseButton.onClick.AddListener(OpenLobby);
+        }
+
+        private void Update()
+        {
+            statusText.text = LanRoomService.Instance.Status;
+        }
+
+        public void BuildLayoutForEditor()
         {
             CampUiFactory.EnsureEventSystem();
             Canvas canvas = CampUiFactory.CreateCanvas(transform);
@@ -31,7 +53,6 @@ namespace FrogCamp.UI
                 Vector2.zero, Vector2.zero, CampUiFactory.Paper, true);
             CampUiFactory.Panel(card, "SideMark", Vector2.zero, new Vector2(0.018f, 1f),
                 Vector2.zero, Vector2.zero, CampUiFactory.Accent);
-
             CampUiFactory.Text(card, "Eyebrow", "WELCOME TO THE CAMP", 20,
                 CampUiFactory.Leaf, new Vector2(0.08f, 0.76f), new Vector2(0.54f, 0.88f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleLeft, true);
@@ -55,26 +76,18 @@ namespace FrogCamp.UI
             nameInput = CampUiFactory.Input(joinCard, "NameInput", "输入你的名字",
                 new Vector2(0.08f, 0.51f), new Vector2(0.92f, 0.63f),
                 Vector2.zero, Vector2.zero, 12);
-            nameInput.text = PlayerPrefs.GetString("frog_player_name", "");
-
-            CampUiFactory.Button(joinCard, "CreateButton", "创建房间",
+            createButton = CampUiFactory.Button(joinCard, "CreateButton", "创建房间",
                 new Vector2(0.08f, 0.33f), new Vector2(0.92f, 0.46f),
-                Vector2.zero, Vector2.zero, CreateRoom);
-            CampUiFactory.Button(joinCard, "BrowseButton", "查找 / 加入房间",
+                Vector2.zero, Vector2.zero, null);
+            browseButton = CampUiFactory.Button(joinCard, "BrowseButton", "查找 / 加入房间",
                 new Vector2(0.08f, 0.17f), new Vector2(0.92f, 0.30f),
-                Vector2.zero, Vector2.zero, OpenLobby, false);
+                Vector2.zero, Vector2.zero, null, false);
             statusText = CampUiFactory.Text(joinCard, "Status", "准备连接局域网",
                 17, CampUiFactory.Muted, new Vector2(0.08f, 0.04f), new Vector2(0.92f, 0.14f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter);
-
             CampUiFactory.Text(page, "Footer", "你一直看得见猎人，但猎人还没有看见你。",
                 19, CampUiFactory.Leaf, new Vector2(0.12f, 0.05f), new Vector2(0.88f, 0.11f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter);
-        }
-
-        private void Update()
-        {
-            if (statusText != null) statusText.text = LanRoomService.Instance.Status;
         }
 
         private void CreateRoom()

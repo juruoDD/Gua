@@ -6,12 +6,15 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/开始界面.unity
+    path: "Assets/Scenes/\u521D\u59CB\u754C\u9762.unity"
+    guid: a6812e07985a4d541af3bc603fdb623a
+  - enabled: 1
+    path: "Assets/Scenes/\u5F00\u59CB\u754C\u9762.unity"
     guid: 185af3901ab4f5945b1a314aabee747d
   - enabled: 1
-    path: Assets/Scenes/联机界面.unity
+    path: "Assets/Scenes/\u8054\u673A\u754C\u9762.unity"
     guid: d77be698537cb3e4f8ae4e9f11558609
   - enabled: 1
-    path: Assets/Scenes/游戏界面.unity
+    path: "Assets/Scenes/\u6E38\u620F\u754C\u9762.unity"
     guid: 1dd581406b34ab243a1a2fdadcbc7c56
   m_configObjects: {}

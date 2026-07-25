@@ -20,6 +20,7 @@ namespace FrogCamp.Networking
         public string code;
         public bool inGame;
         public List<RoomPlayerData> players = new List<RoomPlayerData>();
+        public GameStateData game;
     }
 
     [Serializable]
@@ -32,6 +33,45 @@ namespace FrogCamp.Networking
         public bool ready;
         public string error;
         public RoomStateData room;
+        public float inputX;
+        public float inputY;
+        public string action;
+    }
+
+    [Serializable]
+    public class GameStateData
+    {
+        public List<GameActorData> players = new List<GameActorData>();
+        public List<GameActorData> npcs = new List<GameActorData>();
+        public string announcement;
+        public int announcementId;
+    }
+
+    [Serializable]
+    public class GameActorData
+    {
+        public string id;
+        public string name;
+        public string role;
+        public bool npc;
+        public bool online = true;
+        public bool eliminated;
+        public bool moving;
+        public bool stunned;
+        public float x;
+        public float y;
+        public float inputX;
+        public float inputY;
+        public string facing = "up";
+        public string action;
+        public int actionId;
+        public float actionStartedAt;
+        public float actionUntil;
+        public bool actionResolved;
+        public float jumpX;
+        public float jumpY;
+        public float stunnedUntil;
+        public float nextDecisionAt;
     }
 
     public class DiscoveredRoom

@@ -37,6 +37,7 @@ namespace FrogCamp.Networking
         private Thread clientReadThread;
         private volatile bool hostRunning;
         private volatile bool discoveryRunning;
+        private float gameTickAccumulator;
 
         public static LanRoomService Instance
         {
@@ -87,6 +88,18 @@ namespace FrogCamp.Networking
             bool removed = discoveredRooms.RemoveAll(
                 room => Time.realtimeSinceStartup - room.lastSeen > 4f) > 0;
             if (removed && DiscoveriesChanged != null) DiscoveriesChanged();
+
+            if (IsHost && CurrentRoom != null && CurrentRoom.inGame &&
+                CurrentRoom.game != null)
+            {
+                gameTickAccumulator += Time.unscaledDeltaTime;
+                while (gameTickAccumulator >= 0.05f)
+                {
+                    gameTickAccumulator -= 0.05f;
+                    GameSimulation.Tick(CurrentRoom.game, 0.05f, Time.realtimeSinceStartup);
+                    BroadcastState();
+                }
+            }
         }
 
         public void HostRoom(string playerName)
@@ -197,7 +210,9 @@ namespace FrogCamp.Networking
                 SetStatus(reason);
                 return;
             }
+            CurrentRoom.game = GameSimulation.Create(CurrentRoom, Time.realtimeSinceStartup);
             CurrentRoom.inGame = true;
+            gameTickAccumulator = 0f;
             BroadcastState();
             SendToAll(new LanMessage { type = "start" });
             SceneManager.LoadScene(CampScenes.Game);
@@ -238,6 +253,25 @@ namespace FrogCamp.Networking
         {
             if (CurrentRoom == null) return null;
             return CurrentRoom.players.FirstOrDefault(player => player.id == LocalPlayerId);
+        }
+
+        public void SetGameInput(float x, float y)
+        {
+            if (CurrentRoom == null || !CurrentRoom.inGame) return;
+            if (IsHost)
+                GameSimulation.SetInput(CurrentRoom.game, LocalPlayerId, x, y);
+            else
+                SendClient(new LanMessage { type = "input", inputX = x, inputY = y });
+        }
+
+        public void TriggerGameAction(string action)
+        {
+            if (CurrentRoom == null || !CurrentRoom.inGame) return;
+            if (IsHost)
+                GameSimulation.StartAction(CurrentRoom.game, LocalPlayerId, action,
+                    Time.realtimeSinceStartup);
+            else
+                SendClient(new LanMessage { type = "action", action = action });
         }
 
         public void LeaveRoom()
@@ -435,6 +469,12 @@ namespace FrogCamp.Networking
 
             if (message.type == "join")
             {
+                if (CurrentRoom.inGame)
+                {
+                    peer.Send(new LanMessage { type = "error", error = "游戏已经开始" });
+                    peer.Close();
+                    return;
+                }
                 if (CurrentRoom.players.Count >= MaxPlayers)
                 {
                     peer.Send(new LanMessage { type = "error", error = "房间已满" });
@@ -456,6 +496,12 @@ namespace FrogCamp.Networking
             if (string.IsNullOrEmpty(peer.PlayerId)) return;
             if (message.type == "role") ApplyRole(peer.PlayerId, message.role);
             else if (message.type == "ready") ApplyReady(peer.PlayerId, message.ready);
+            else if (message.type == "input")
+                GameSimulation.SetInput(CurrentRoom.game, peer.PlayerId,
+                    message.inputX, message.inputY);
+            else if (message.type == "action")
+                GameSimulation.StartAction(CurrentRoom.game, peer.PlayerId,
+                    message.action, Time.realtimeSinceStartup);
             else if (message.type == "leave") RemovePeer(peer);
         }
 
@@ -545,6 +591,7 @@ namespace FrogCamp.Networking
             peer.Close();
             if (!string.IsNullOrEmpty(peer.PlayerId))
             {
+                GameSimulation.SetPlayerOffline(CurrentRoom?.game, peer.PlayerId);
                 CurrentRoom?.players.RemoveAll(player => player.id == peer.PlayerId);
                 BroadcastState();
             }

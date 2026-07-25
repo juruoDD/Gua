@@ -7,28 +7,48 @@ namespace FrogCamp.UI
 {
     public sealed class LobbySceneController : MonoBehaviour
     {
-        private readonly Text[] discoveryLabels = new Text[4];
-        private readonly Button[] discoveryButtons = new Button[4];
-        private readonly Text[] playerLabels = new Text[4];
-
-        private GameObject connectPanel;
-        private GameObject roomPanel;
-        private InputField nameInput;
-        private InputField codeInput;
-        private Text statusText;
-        private Text networkText;
-        private Text roomCodeText;
-        private Text roomCountText;
-        private Text roleHintText;
-        private Text readyLabel;
-        private Text startHintText;
-        private Button readyButton;
-        private Button startButton;
+        [SerializeField] private Text[] discoveryLabels = new Text[4];
+        [SerializeField] private Button[] discoveryButtons = new Button[4];
+        [SerializeField] private Text[] playerLabels = new Text[4];
+        [SerializeField] private GameObject connectPanel;
+        [SerializeField] private GameObject roomPanel;
+        [SerializeField] private InputField nameInput;
+        [SerializeField] private InputField codeInput;
+        [SerializeField] private Text statusText;
+        [SerializeField] private Text networkText;
+        [SerializeField] private Text roomCodeText;
+        [SerializeField] private Text roomCountText;
+        [SerializeField] private Text roleHintText;
+        [SerializeField] private Text readyLabel;
+        [SerializeField] private Text startHintText;
+        [SerializeField] private Button backButton;
+        [SerializeField] private Button joinButton;
+        [SerializeField] private Button createButton;
+        [SerializeField] private Button officerButton;
+        [SerializeField] private Button disguiserButton;
+        [SerializeField] private Button readyButton;
+        [SerializeField] private Button startButton;
         private float nextRefreshTime;
 
         private LanRoomService Service { get { return LanRoomService.Instance; } }
 
         private void Awake()
+        {
+            if (connectPanel == null || roomPanel == null || nameInput == null ||
+                codeInput == null || statusText == null || backButton == null ||
+                joinButton == null || createButton == null || officerButton == null ||
+                disguiserButton == null || readyButton == null || startButton == null)
+            {
+                Debug.LogError("联机界面的 UI 引用不完整，请重新烘焙场景或在 Inspector 中指定。");
+                enabled = false;
+                return;
+            }
+            BindRuntimeEvents();
+            nameInput.text = PlayerPrefs.GetString("frog_player_name", "青蛙玩家");
+            Refresh();
+        }
+
+        public void BuildLayoutForEditor()
         {
             CampUiFactory.EnsureEventSystem();
             Canvas canvas = CampUiFactory.CreateCanvas(transform);
@@ -40,7 +60,23 @@ namespace FrogCamp.UI
             statusText = CampUiFactory.Text(page, "GlobalStatus", "", 19,
                 CampUiFactory.Muted, new Vector2(0.08f, 0.025f), new Vector2(0.92f, 0.075f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter);
-            Refresh();
+        }
+
+        private void BindRuntimeEvents()
+        {
+            backButton.onClick.AddListener(BackToStart);
+            joinButton.onClick.AddListener(JoinRoom);
+            createButton.onClick.AddListener(CreateRoom);
+            officerButton.onClick.AddListener(() => Service.SelectRole("officer"));
+            disguiserButton.onClick.AddListener(() => Service.SelectRole("disguiser"));
+            readyButton.onClick.AddListener(ToggleReady);
+            startButton.onClick.AddListener(() => Service.RequestStart());
+            for (int index = 0; index < discoveryButtons.Length; index++)
+            {
+                int capturedIndex = index;
+                discoveryButtons[index].onClick.AddListener(
+                    () => SelectDiscovery(capturedIndex));
+            }
         }
 
         private void Update()
@@ -60,9 +96,9 @@ namespace FrogCamp.UI
             CampUiFactory.Text(page, "HeaderTitle", "军营联机准备室", 36,
                 CampUiFactory.White, new Vector2(0.34f, 0.89f), new Vector2(0.66f, 0.99f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter, true);
-            CampUiFactory.Button(page, "BackButton", "返回",
+            backButton = CampUiFactory.Button(page, "BackButton", "返回",
                 new Vector2(0.83f, 0.91f), new Vector2(0.93f, 0.975f),
-                Vector2.zero, Vector2.zero, BackToStart, false);
+                Vector2.zero, Vector2.zero, null, false);
         }
 
         private void BuildConnectPanel(RectTransform page)
@@ -88,19 +124,18 @@ namespace FrogCamp.UI
             nameInput = CampUiFactory.Input(form, "NameInput", "输入你的名字",
                 new Vector2(0.08f, 0.61f), new Vector2(0.92f, 0.75f),
                 Vector2.zero, Vector2.zero, 12);
-            nameInput.text = PlayerPrefs.GetString("frog_player_name", "青蛙玩家");
             CampUiFactory.Text(form, "CodeLabel", "房间代码 / 房主 IP", 19, CampUiFactory.Leaf,
                 new Vector2(0.08f, 0.44f), new Vector2(0.92f, 0.57f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleLeft, true);
             codeInput = CampUiFactory.Input(form, "CodeInput", "例如 A7K9 或 192.168.1.20",
                 new Vector2(0.08f, 0.30f), new Vector2(0.92f, 0.44f),
                 Vector2.zero, Vector2.zero, 45);
-            CampUiFactory.Button(form, "JoinButton", "加入房间",
+            joinButton = CampUiFactory.Button(form, "JoinButton", "加入房间",
                 new Vector2(0.08f, 0.08f), new Vector2(0.52f, 0.23f),
-                Vector2.zero, Vector2.zero, JoinRoom);
-            CampUiFactory.Button(form, "CreateButton", "创建房间",
+                Vector2.zero, Vector2.zero, null);
+            createButton = CampUiFactory.Button(form, "CreateButton", "创建房间",
                 new Vector2(0.56f, 0.08f), new Vector2(0.92f, 0.23f),
-                Vector2.zero, Vector2.zero, CreateRoom, false);
+                Vector2.zero, Vector2.zero, null, false);
 
             RectTransform rooms = CampUiFactory.Panel(panel, "RoomList",
                 new Vector2(0.49f, 0.15f), new Vector2(0.94f, 0.68f),
@@ -108,13 +143,14 @@ namespace FrogCamp.UI
             CampUiFactory.Text(rooms, "RoomTitle", "附近的房间", 26,
                 CampUiFactory.Deep, new Vector2(0.06f, 0.81f), new Vector2(0.94f, 0.94f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleLeft, true);
+            discoveryButtons = new Button[4];
+            discoveryLabels = new Text[4];
             for (int index = 0; index < 4; index++)
             {
-                int capturedIndex = index;
                 float top = 0.78f - index * 0.17f;
                 discoveryButtons[index] = CampUiFactory.Button(rooms, "Room" + index,
                     "正在搜索…", new Vector2(0.06f, top - 0.13f), new Vector2(0.94f, top),
-                    Vector2.zero, Vector2.zero, () => SelectDiscovery(capturedIndex), false);
+                    Vector2.zero, Vector2.zero, null, false);
                 discoveryLabels[index] = CampUiFactory.ButtonLabel(discoveryButtons[index]);
                 discoveryLabels[index].fontSize = 20;
             }
@@ -143,6 +179,7 @@ namespace FrogCamp.UI
             CampUiFactory.Text(roster, "RosterTitle", "人员频道", 25,
                 CampUiFactory.Deep, new Vector2(0.05f, 0.84f), new Vector2(0.95f, 0.96f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleLeft, true);
+            playerLabels = new Text[4];
             for (int index = 0; index < 4; index++)
             {
                 float top = 0.80f - index * 0.18f;
@@ -162,22 +199,23 @@ namespace FrogCamp.UI
             CampUiFactory.Text(preparation, "Title", "身份准备", 29,
                 CampUiFactory.Deep, new Vector2(0.08f, 0.82f), new Vector2(0.92f, 0.94f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleLeft, true);
-            CampUiFactory.Button(preparation, "OfficerButton", "军官  ·  1 人",
+            officerButton = CampUiFactory.Button(preparation, "OfficerButton", "军官  ·  1 人",
                 new Vector2(0.08f, 0.65f), new Vector2(0.92f, 0.78f),
-                Vector2.zero, Vector2.zero, () => Service.SelectRole("officer"), false);
-            CampUiFactory.Button(preparation, "DisguiserButton", "伪装者  ·  最多 3 人",
+                Vector2.zero, Vector2.zero, null, false);
+            disguiserButton = CampUiFactory.Button(preparation, "DisguiserButton",
+                "伪装者  ·  最多 3 人",
                 new Vector2(0.08f, 0.49f), new Vector2(0.92f, 0.62f),
-                Vector2.zero, Vector2.zero, () => Service.SelectRole("disguiser"), false);
+                Vector2.zero, Vector2.zero, null, false);
             roleHintText = CampUiFactory.Text(preparation, "RoleHint", "请选择身份",
                 18, CampUiFactory.Muted, new Vector2(0.08f, 0.40f), new Vector2(0.92f, 0.48f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter);
             readyButton = CampUiFactory.Button(preparation, "ReadyButton", "准备",
                 new Vector2(0.08f, 0.24f), new Vector2(0.92f, 0.37f),
-                Vector2.zero, Vector2.zero, ToggleReady);
+                Vector2.zero, Vector2.zero, null);
             readyLabel = CampUiFactory.ButtonLabel(readyButton);
             startButton = CampUiFactory.Button(preparation, "StartButton", "开始游戏",
                 new Vector2(0.08f, 0.08f), new Vector2(0.92f, 0.21f),
-                Vector2.zero, Vector2.zero, () => Service.RequestStart());
+                Vector2.zero, Vector2.zero, null);
             startHintText = CampUiFactory.Text(panel, "StartHint", "",
                 18, CampUiFactory.Muted, new Vector2(0.63f, 0.05f), new Vector2(0.95f, 0.14f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter);
