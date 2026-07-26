@@ -18,6 +18,8 @@ namespace FrogCamp.Networking
         public const float JumpDistance = 48f;
         public const float TongueRange = 44f;
         public const int NpcCount = 20;
+        public const float AnimationSpeedMultiplier = 1.25f;
+        public const float LimbAnimationExtraSpeed = 1.35f;
 
         private const float EdgeMargin = 90f;
         private static readonly string[] Facings =
@@ -29,6 +31,10 @@ namespace FrogCamp.Networking
         {
             "jump", "armLeft", "armRight", "legLeft",
             "legRight", "croak", "tongue", "salute"
+        };
+        private static readonly string[] CadenceActions =
+        {
+            "armRight", "armLeft", "legLeft", "legRight"
         };
 
         public static GameStateData Create(RoomStateData room, float now)
@@ -79,6 +85,8 @@ namespace FrogCamp.Networking
         public static void Tick(GameStateData game, float deltaTime, float now)
         {
             if (game == null) return;
+            game.musicTime += deltaTime;
+            TriggerCadenceActions(game, now);
             List<GameActorData> actors = game.players.Concat(game.npcs).ToList();
             foreach (GameActorData actor in game.players)
             {
@@ -92,7 +100,7 @@ namespace FrogCamp.Networking
                     continue;
                 }
                 if (actor.action == "jump")
-                    Move(actor, actor.jumpX * deltaTime, actor.jumpY * deltaTime, actors);
+                    MoveDuringJump(actor, deltaTime, actors);
                 else if (string.IsNullOrEmpty(actor.action))
                 {
                     float speed = actor.role == "officer" ? OfficerMoveSpeed : MoveSpeed;
@@ -107,7 +115,7 @@ namespace FrogCamp.Networking
                 FinishAction(npc, now);
                 if (npc.action == "jump")
                 {
-                    npc.moving = Move(npc, npc.jumpX * deltaTime, npc.jumpY * deltaTime, actors);
+                    MoveDuringJump(npc, deltaTime, actors);
                     continue;
                 }
                 if (!string.IsNullOrEmpty(npc.action))
@@ -133,15 +141,17 @@ namespace FrogCamp.Networking
         {
             switch (action)
             {
-                case "jump": return 0.72f;
+                case "jump": return 0.72f / AnimationSpeedMultiplier;
                 case "armLeft":
-                case "armRight": return 0.56f;
+                case "armRight": return 0.56f /
+                    (AnimationSpeedMultiplier * LimbAnimationExtraSpeed);
                 case "legLeft":
-                case "legRight": return 0.62f;
-                case "croak": return 0.82f;
-                case "tongue": return 0.92f;
-                case "whistle": return 1f;
-                case "salute": return 1f;
+                case "legRight": return 0.62f /
+                    (AnimationSpeedMultiplier * LimbAnimationExtraSpeed);
+                case "croak": return 0.82f / AnimationSpeedMultiplier;
+                case "tongue": return 0.92f / AnimationSpeedMultiplier;
+                case "whistle": return 1f / AnimationSpeedMultiplier;
+                case "salute": return 1f / AnimationSpeedMultiplier;
                 default: return 0f;
             }
         }
@@ -206,6 +216,24 @@ namespace FrogCamp.Networking
                 float speed = JumpDistance / ActionDuration(action);
                 actor.jumpX = direction.x * speed;
                 actor.jumpY = direction.y * speed;
+            }
+        }
+
+        private static void TriggerCadenceActions(GameStateData game, float now)
+        {
+            IReadOnlyList<CadenceBeatPoint> beats = CadenceBeatTable.Points;
+            while (game.nextCadenceBeat < beats.Count &&
+                   beats[game.nextCadenceBeat].time <= game.musicTime)
+            {
+                CadenceBeatPoint point = beats[game.nextCadenceBeat];
+                string action = CadenceActions[point.beat - 1];
+                foreach (GameActorData npc in game.npcs)
+                {
+                    if (npc.eliminated || !npc.online) continue;
+                    BeginAction(npc, action, now);
+                    npc.nextDecisionAt = npc.actionUntil + 0.15f;
+                }
+                game.nextCadenceBeat++;
             }
         }
 
@@ -279,6 +307,13 @@ namespace FrogCamp.Networking
                 actor.y = nextY; return true;
             }
             return false;
+        }
+
+        private static void MoveDuringJump(GameActorData actor, float deltaTime,
+            List<GameActorData> actors)
+        {
+            actor.moving = false;
+            Move(actor, actor.jumpX * deltaTime, actor.jumpY * deltaTime, actors);
         }
 
         private static bool CanOccupy(GameActorData actor, float x, float y,

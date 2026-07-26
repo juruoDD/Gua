@@ -9,8 +9,8 @@ namespace FrogCamp.Editor
     {
         static PrototypeSmokeTest()
         {
-            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV2", false)) return;
-            SessionState.SetBool("FrogCamp.PrototypeSmokeV2", true);
+            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV5", false)) return;
+            SessionState.SetBool("FrogCamp.PrototypeSmokeV5", true);
             EditorApplication.delayCall += Run;
         }
 
@@ -34,7 +34,24 @@ namespace FrogCamp.Editor
             if (game.npcs.Count != 19 || !officer.stunned)
                 throw new System.Exception("军官吐舌命中 AI 的消灭或眩晕逻辑失败。");
 
-            Debug.Log("原型冒烟测试通过：2 名玩家、20 个 AI、吐舌消灭 AI、军官眩晕均正常。");
+            if (CadenceBeatTable.Points.Count != 739 ||
+                Mathf.Abs(CadenceBeatTable.Points[0].time - 22.967244f) > .001f ||
+                Mathf.Abs(CadenceBeatTable.Points[1].time -
+                    CadenceBeatTable.Points[0].time - .6974564f) > .001f ||
+                CadenceBeatTable.Points[0].beat != 1 ||
+                CadenceBeatTable.Points[3].beat != 4 ||
+                CadenceBeatTable.Points[4].beat != 1 ||
+                CadenceBeatTable.Points[738].time > 538.00635f)
+                throw new System.Exception("项目跑操等差时间轴读取或生成失败。");
+
+            GameStateData cadenceGame = GameSimulation.Create(room, 3f);
+            GameSimulation.Tick(cadenceGame,
+                CadenceBeatTable.Points[0].time + .001f, 3.05f);
+            if (cadenceGame.nextCadenceBeat != 1 ||
+                cadenceGame.npcs.Exists(item => item.action != "armRight"))
+                throw new System.Exception("跑操第一拍未让全部 NPC 同步执行数字键 1 动作。");
+
+            Debug.Log("原型冒烟测试通过：联机角色、吐舌判定、739 拍项目时间轴、首拍全体 NPC 动作均正常。");
         }
     }
 }

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "audioFile": "跑操音乐.mp3",
+  "audioDuration": 538.00635,
+  "firstBeatTime": 22.967244,
+  "beatInterval": 0.6974564,
+  "beatCount": 739,
+  "pattern": [1, 2, 3, 4],
+  "sourceAnchorCount": 20,
+  "sourceDescription": "由 sound/实际1234拍.csv 的 20 个标记按连续节拍序号进行最小二乘拟合",
+  "fitMaxError": 0.080745,
+  "fitRmsError": 0.02872
+}

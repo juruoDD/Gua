@@ -104,7 +104,8 @@ namespace FrogCamp.Gameplay
                     int frameCount = FrogAnimationSet.GetFrameCount(state);
                     int frame = useActionFrames
                         ? Mathf.Min(frameCount - 1, Mathf.FloorToInt(progress * frameCount))
-                        : Mathf.FloorToInt(Time.unscaledTime * 8f) % frameCount;
+                        : Mathf.FloorToInt(Time.unscaledTime * 8f *
+                            GameSimulation.AnimationSpeedMultiplier) % frameCount;
                     frameImage.texture = useActionFrames ? actionTexture :
                         (useHopFrames ? animations.Hop : animations.Idle);
                     frameImage.uvRect = new Rect(frame / (float)frameCount, 0f,

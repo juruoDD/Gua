@@ -17,11 +17,14 @@ namespace FrogCamp.UI
         [SerializeField] private Button exitButton;
         [SerializeField] private FrogAnimationSet greenAnimations = new FrogAnimationSet();
         [SerializeField] private FrogAnimationSet pinkAnimations = new FrogAnimationSet();
+        [SerializeField] private AudioClip cadenceMusic;
+        [SerializeField] private AudioSource cadenceMusicSource;
 
         private readonly Dictionary<string, FrogActorView> actorViews =
             new Dictionary<string, FrogActorView>();
         private float nextInputTime;
         private int lastAnnouncementId;
+        private bool cadenceMusicStarted;
 
         private void Awake()
         {
@@ -34,6 +37,14 @@ namespace FrogCamp.UI
             }
             exitButton.onClick.AddListener(ExitGame);
             announcementText.gameObject.SetActive(false);
+            if (cadenceMusicSource != null)
+            {
+                cadenceMusicSource.playOnAwake = false;
+                cadenceMusicSource.loop = false;
+                cadenceMusicSource.spatialBlend = 0f;
+                if (cadenceMusicSource.clip == null)
+                    cadenceMusicSource.clip = cadenceMusic;
+            }
         }
 
         private void Update()
@@ -56,6 +67,16 @@ namespace FrogCamp.UI
                 LoadFrogTexture("粉色大跳"), null, null, null, null,
                 LoadFrogTexture("粉色张嘴"), LoadFrogTexture("粉色吐舌"),
                 null, null);
+            cadenceMusic = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Sound/跑操音乐.mp3");
+            cadenceMusicSource = GetComponent<AudioSource>();
+            if (cadenceMusicSource == null)
+                cadenceMusicSource = gameObject.AddComponent<AudioSource>();
+            cadenceMusicSource.clip = cadenceMusic;
+            cadenceMusicSource.playOnAwake = false;
+            cadenceMusicSource.loop = false;
+            cadenceMusicSource.spatialBlend = 0f;
+            cadenceMusicSource.volume = 0.7f;
 #endif
             CampUiFactory.EnsureEventSystem();
             Canvas canvas = CampUiFactory.CreateCanvas(transform);
@@ -134,6 +155,7 @@ namespace FrogCamp.UI
             roomText.text = room == null ? "离线" : "房间 " + room.code;
             statusText.text = room == null ? "当前未连接房间" : service.Status;
             if (room == null || room.game == null) return;
+            SyncCadenceMusic(room.game);
 
             List<GameActorData> actors = room.game.npcs.Concat(room.game.players).ToList();
             HashSet<string> activeIds = new HashSet<string>();
@@ -173,6 +195,31 @@ namespace FrogCamp.UI
             announcementText.gameObject.SetActive(false);
         }
 
+        private void SyncCadenceMusic(GameStateData game)
+        {
+            if (cadenceMusicSource == null || cadenceMusic == null) return;
+            if (cadenceMusicSource.clip != cadenceMusic)
+                cadenceMusicSource.clip = cadenceMusic;
+
+            float desiredTime = Mathf.Clamp(game.musicTime, 0f, cadenceMusic.length);
+            if (desiredTime >= cadenceMusic.length - 0.05f)
+            {
+                if (cadenceMusicSource.isPlaying) cadenceMusicSource.Stop();
+                return;
+            }
+
+            if (!cadenceMusicStarted || !cadenceMusicSource.isPlaying)
+            {
+                cadenceMusicSource.time = desiredTime;
+                cadenceMusicSource.Play();
+                cadenceMusicStarted = true;
+                return;
+            }
+
+            if (Mathf.Abs(cadenceMusicSource.time - desiredTime) > 0.12f)
+                cadenceMusicSource.time = desiredTime;
+        }
+
         private static void AddBuilding(RectTransform parent, string label,
             Vector2 anchorMin, Vector2 anchorMax)
         {
@@ -205,6 +252,7 @@ namespace FrogCamp.UI
 
         private void ExitGame()
         {
+            if (cadenceMusicSource != null) cadenceMusicSource.Stop();
             LanRoomService.Instance.LeaveRoom();
             SceneManager.LoadScene(CampScenes.Start);
         }

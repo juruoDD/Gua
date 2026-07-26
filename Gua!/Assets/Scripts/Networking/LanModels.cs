@@ -45,6 +45,8 @@ namespace FrogCamp.Networking
         public List<GameActorData> npcs = new List<GameActorData>();
         public string announcement;
         public int announcementId;
+        public float musicTime;
+        public int nextCadenceBeat;
     }
 
     [Serializable]
