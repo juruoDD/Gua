@@ -67,7 +67,6 @@ namespace FrogCamp.Tasks
             TaskCatalog catalog = LoadCatalog();
             taskPool = new TaskPool(catalog);
             if (!HasBakedLayout()) BuildRuntimeFallbackLayout();
-            ClearTaskRows();
             RefreshPanel();
         }
 
@@ -132,34 +131,47 @@ namespace FrogCamp.Tasks
             if (oldCabinetArea != null) DestroyImmediate(oldCabinetArea.gameObject);
 #endif
             BuildPanel(map);
-            AddTaskRow(new TaskDefinition
+            TaskDefinition[] previewTasks =
             {
-                id = BirdNestTaskId,
-                title = "从鸟窝中偷钥匙",
-                description = "在鸟窝中静止不动 5s",
-                guaranteed = true
-            }, 0, 0.235f);
-            AddTaskRow(new TaskDefinition
-            {
-                id = CabinetTaskId,
-                title = "打开军官私房柜子",
-                description = "拿到钥匙后，靠近柜子按 F",
-                guaranteed = true
-            }, 1, 0.235f);
-            AddTaskRow(new TaskDefinition
-            {
-                id = AttackOfficerTaskId,
-                title = "袭击军官蛙",
-                description = "对着军官蛙吐舌头",
-                guaranteed = true
-            }, 2, 0.235f);
-            AddTaskRow(new TaskDefinition
-            {
-                id = ReedTaskId,
-                title = "在芦苇丛中偷懒 5s",
-                description = "在左上角芦苇丛保持不动 5s",
-                guaranteed = true
-            }, 3, 0.235f);
+                new TaskDefinition
+                {
+                    id = BirdNestTaskId,
+                    title = "从鸟窝中偷钥匙",
+                    description = "在鸟窝中静止不动 5s",
+                    guaranteed = true
+                },
+                new TaskDefinition
+                {
+                    id = CabinetTaskId,
+                    title = "打开军官私房柜子",
+                    description = "拿到钥匙后，靠近柜子按 F",
+                    guaranteed = true
+                },
+                new TaskDefinition
+                {
+                    id = AttackOfficerTaskId,
+                    title = "袭击军官蛙",
+                    description = "对着军官蛙吐舌头",
+                    guaranteed = true
+                },
+                new TaskDefinition
+                {
+                    id = ReedTaskId,
+                    title = "在芦苇丛中偷懒 5s",
+                    description = "在左上角芦苇丛保持不动 5s",
+                    guaranteed = true
+                },
+                new TaskDefinition
+                {
+                    id = "make_bed",
+                    title = "整理床铺",
+                    description = "把营帐里的床铺整理整齐",
+                    guaranteed = true
+                }
+            };
+            const float rowHeight = 0.188f;
+            for (int index = 0; index < previewTasks.Length; index++)
+                AddTaskRow(previewTasks[index], index, rowHeight);
         }
 
         private bool HasBakedLayout()
@@ -238,6 +250,12 @@ namespace FrogCamp.Tasks
             fillRect.offsetMin = Vector2.zero;
             fillRect.offsetMax = Vector2.zero;
 
+            if (HasBakedTaskRows())
+            {
+                RefreshBakedTaskRows();
+                return;
+            }
+
             ClearTaskRows();
 
             if (taskPool.IsFinished)
@@ -258,11 +276,83 @@ namespace FrogCamp.Tasks
                 AddTaskRow(taskPool.ActiveTasks[index], index, rowHeight);
         }
 
+        private bool HasBakedTaskRows()
+        {
+            if (taskList == null || taskList.childCount == 0) return false;
+            Transform first = taskList.GetChild(0);
+            return first.Find("Title") != null &&
+                   first.Find("Description") != null;
+        }
+
+        private void RefreshBakedTaskRows()
+        {
+            if (taskPool.IsFinished)
+            {
+                ApplyBakedEmptyState(
+                    "全部任务已完成", "营地秩序恢复良好");
+                return;
+            }
+
+            if (taskPool.ActiveTasks.Count == 0)
+            {
+                ApplyBakedEmptyState(
+                    "暂无可执行任务", "完成前置任务后将自动解锁");
+                return;
+            }
+
+            for (int index = 0; index < taskList.childCount; index++)
+            {
+                Transform row = taskList.GetChild(index);
+                bool active = index < taskPool.ActiveTasks.Count;
+                row.gameObject.SetActive(active);
+                if (!active) continue;
+
+                TaskDefinition task = taskPool.ActiveTasks[index];
+                SetChildText(row, "Title", task.title);
+                SetChildText(row, "Description",
+                    string.IsNullOrEmpty(task.description)
+                        ? "等待任务条件"
+                        : task.description);
+                Transform guaranteed = row.Find("Guaranteed");
+                if (guaranteed != null)
+                {
+                    guaranteed.gameObject.SetActive(task.guaranteed);
+                    Text label = guaranteed.GetComponent<Text>();
+                    if (label != null) label.text = "必";
+                }
+            }
+        }
+
+        private void ApplyBakedEmptyState(
+            string title, string description)
+        {
+            for (int index = 0; index < taskList.childCount; index++)
+            {
+                Transform row = taskList.GetChild(index);
+                row.gameObject.SetActive(index == 0);
+                if (index != 0) continue;
+                SetChildText(row, "Title", title);
+                SetChildText(row, "Description", description);
+                Transform guaranteed = row.Find("Guaranteed");
+                if (guaranteed != null)
+                    guaranteed.gameObject.SetActive(false);
+            }
+        }
+
+        private static void SetChildText(
+            Transform parent, string childName, string value)
+        {
+            Transform child = parent.Find(childName);
+            Text text = child != null ? child.GetComponent<Text>() : null;
+            if (text != null) text.text = value;
+        }
+
         private void AddTaskRow(TaskDefinition task, int index, float rowHeight)
         {
             float top = 1f - index * rowHeight;
             float bottom = top - rowHeight + 0.018f;
-            RectTransform row = CampUiFactory.Panel(taskList, "Task_" + task.id,
+            RectTransform row = CampUiFactory.Panel(taskList,
+                "TaskSlot" + (index + 1),
                 new Vector2(0f, bottom), new Vector2(1f, top),
                 Vector2.zero, Vector2.zero,
                 index == 0
