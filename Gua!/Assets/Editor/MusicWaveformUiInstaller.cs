@@ -36,5 +36,29 @@ namespace FrogCamp.Editor
                 EditorSceneManager.OpenScene(returnPath, OpenSceneMode.Single);
             Debug.Log("实时音乐波形 UI 已添加到游戏 Scene。");
         }
+
+        [MenuItem("Tools/Frog Camp/Apply Music Waveform Style Only")]
+        public static void ApplyStyleOnly()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+            string returnPath = SceneManager.GetActiveScene().path;
+            EditorSceneManager.SaveOpenScenes();
+            Scene gameScene = EditorSceneManager.OpenScene(
+                GameScenePath, OpenSceneMode.Single);
+            MusicWaveformGraphic waveform =
+                Object.FindObjectOfType<MusicWaveformGraphic>();
+            if (waveform == null)
+                throw new System.InvalidOperationException(
+                    "游戏界面缺少 MusicWaveformGraphic。");
+
+            waveform.ApplyReferenceStyle();
+            EditorUtility.SetDirty(waveform);
+            EditorSceneManager.MarkSceneDirty(gameScene);
+            EditorSceneManager.SaveScene(gameScene, GameScenePath);
+            AssetDatabase.SaveAssets();
+            if (!string.IsNullOrEmpty(returnPath) && File.Exists(returnPath))
+                EditorSceneManager.OpenScene(returnPath, OpenSceneMode.Single);
+            Debug.Log("绿色细柱音乐波形样式已保存，未重建 UI。");
+        }
     }
 }

@@ -1,5 +1,6 @@
 using FrogCamp.Networking;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 namespace FrogCamp.UI
@@ -9,15 +10,30 @@ namespace FrogCamp.UI
     public sealed class MusicWaveformGraphic : MaskableGraphic
     {
         [SerializeField] private AudioSource musicSource;
-        [SerializeField, Range(16, 96)] private int barCount = 64;
-        [SerializeField, Range(0.5f, 8f)] private float sensitivity = 3.2f;
-        [SerializeField, Range(1f, 24f)] private float smoothing = 11f;
+        [SerializeField, Range(16, 96)] private int barCount = 80;
+        [SerializeField, Range(0.5f, 16f)] private float sensitivity = 8.5f;
+        [SerializeField, Range(1f, 24f)] private float smoothing = 9f;
+        [SerializeField, Range(0f, 0.35f)] private float minimumLevel = 0.11f;
+        [SerializeField, Range(0.4f, 1f)] private float responseCurve = 0.68f;
+        [SerializeField, Range(0f, 0.6f)] private float glowOpacity = 0.12f;
+        [SerializeField, Range(0.2f, 0.9f)] private float barWidthRatio = 0.72f;
+        [SerializeField, Range(2f, 12f)] private float pixelBlockHeight = 6f;
+        [SerializeField, Range(0f, 5f)] private float pixelBlockGap = 1.5f;
+        [SerializeField, Range(0, 500)] private int pixelParticleCount = 320;
+        [SerializeField, Range(0.5f, 3f)] private float particleSizeMultiplier = 0.9f;
+        [SerializeField, Range(0.1f, 0.8f)] private float particleRiseRatio = 0.62f;
+        [SerializeField, Range(0f, 1.5f)] private float particleHorizontalDrift = 0.55f;
+        [SerializeField, Range(0.2f, 2f)] private float particleGlowStrength = 0.35f;
+        [SerializeField, Range(0.5f, 3f)] private float beatParticleBurst = 1.35f;
+        [FormerlySerializedAs("forceWarmTheme")]
+        [FormerlySerializedAs("forceGreenTheme")]
+        [SerializeField] private bool forceReferenceGreenTheme = true;
         [SerializeField] private Color quietColor =
-            new Color(0.32f, 0.49f, 0.35f, 0.76f);
+            new Color(0.47f, 0.62f, 0.48f, 0.98f);
         [SerializeField] private Color loudColor =
-            new Color(0.12f, 0.25f, 0.20f, 0.98f);
+            new Color(0.20f, 0.36f, 0.26f, 1f);
         [SerializeField] private Color beatColor =
-            new Color(0.88f, 0.55f, 0.30f, 1f);
+            new Color(0.66f, 0.82f, 0.45f, 1f);
 
         private readonly float[] spectrum = new float[256];
         private readonly float[] secondarySpectrum = new float[256];
@@ -34,12 +50,25 @@ namespace FrogCamp.UI
 
         public void ApplyReferenceStyle()
         {
-            barCount = 64;
-            sensitivity = 3.2f;
-            smoothing = 11f;
-            quietColor = new Color(0.32f, 0.49f, 0.35f, 0.76f);
-            loudColor = new Color(0.12f, 0.25f, 0.20f, 0.98f);
-            beatColor = new Color(0.88f, 0.55f, 0.30f, 1f);
+            barCount = 80;
+            sensitivity = 8.5f;
+            smoothing = 9f;
+            minimumLevel = 0.11f;
+            responseCurve = 0.68f;
+            glowOpacity = 0.12f;
+            barWidthRatio = 0.72f;
+            pixelBlockHeight = 6f;
+            pixelBlockGap = 1.5f;
+            pixelParticleCount = 320;
+            particleSizeMultiplier = 0.9f;
+            particleRiseRatio = 0.62f;
+            particleHorizontalDrift = 0.55f;
+            particleGlowStrength = 0.35f;
+            beatParticleBurst = 1.35f;
+            forceReferenceGreenTheme = true;
+            quietColor = new Color(0.47f, 0.62f, 0.48f, 0.98f);
+            loudColor = new Color(0.20f, 0.36f, 0.26f, 1f);
+            beatColor = new Color(0.66f, 0.82f, 0.45f, 1f);
             EnsureHeights();
             SetVerticesDirty();
         }
@@ -135,11 +164,12 @@ namespace FrogCamp.UI
             vertexHelper.Clear();
             EnsureHeights();
             Rect area = GetPixelAdjustedRect();
-            float gap = Mathf.Max(3f, area.width * 0.0022f);
-            float barWidth = (area.width - gap * (barCount - 1)) / barCount;
-            float radius = Mathf.Max(1.5f, barWidth * 0.5f);
-            float baseY = area.yMin + radius;
-            float availableHeight = area.height - radius * 2f;
+            float cellWidth = area.width / barCount;
+            float barWidth = Mathf.Max(2f, cellWidth * barWidthRatio);
+            float blockHeight = Mathf.Min(pixelBlockHeight, barWidth);
+            float blockStep = Mathf.Max(1f, blockHeight + pixelBlockGap);
+            float availableHeight = area.height;
+            ResolveColors(out Color quiet, out Color loud, out Color beat);
 
             for (int index = 0; index < barCount; index++)
             {
@@ -157,14 +187,29 @@ namespace FrogCamp.UI
                 }
 #endif
                 float level = Mathf.Clamp01(
-                    signal + beatPulse * 0.42f * pulseShape);
-                float height = Mathf.Lerp(radius * 2f, availableHeight, level);
-                float xMin = area.xMin + index * (barWidth + gap);
-                Color barColor = Color.Lerp(quietColor, loudColor, level);
-                barColor = Color.Lerp(barColor, beatColor, beatPulse * 0.72f);
-                AddCapsule(vertexHelper, xMin + barWidth * 0.5f,
-                    baseY, height, radius, barColor);
+                    minimumLevel +
+                    Mathf.Pow(Mathf.Clamp01(signal), responseCurve) *
+                    (1f - minimumLevel) +
+                    beatPulse * 0.55f * pulseShape);
+                float height = Mathf.Lerp(blockHeight, availableHeight, level);
+                float centerX = area.xMin + cellWidth * (index + 0.5f);
+                Color barColor = Color.Lerp(quiet, loud, level);
+                barColor = Color.Lerp(barColor, beat, beatPulse * 0.82f);
+                int blockCount = Mathf.Max(1,
+                    Mathf.FloorToInt((height + pixelBlockGap) / blockStep));
+                for (int block = 0; block < blockCount; block++)
+                {
+                    float centerY = area.yMin + block * blockStep +
+                        blockHeight * 0.5f;
+                    if (centerY + blockHeight * 0.5f > area.yMax)
+                        break;
+                    AddRect(vertexHelper, new Vector2(centerX, centerY),
+                        new Vector2(barWidth, blockHeight), barColor);
+                }
             }
+
+            DrawPixelParticles(vertexHelper, area, cellWidth,
+                quiet, loud, beat);
         }
 
         private void EnsureHeights()
@@ -173,6 +218,94 @@ namespace FrogCamp.UI
                 heights = new float[Mathf.Max(1, barCount)];
             if (targets == null || targets.Length != barCount)
                 targets = new float[Mathf.Max(1, barCount)];
+        }
+
+        private void ResolveColors(out Color quiet, out Color loud,
+            out Color beat)
+        {
+            if (forceReferenceGreenTheme)
+            {
+                quiet = new Color(0.47f, 0.62f, 0.48f, 0.98f);
+                loud = new Color(0.20f, 0.36f, 0.26f, 1f);
+                beat = new Color(0.66f, 0.82f, 0.45f, 1f);
+                return;
+            }
+            quiet = quietColor;
+            loud = loudColor;
+            beat = beatColor;
+        }
+
+        private void DrawPixelParticles(VertexHelper helper, Rect area,
+            float cellWidth, Color quiet, Color loud, Color beat)
+        {
+            int count = Mathf.Clamp(pixelParticleCount, 0, 500);
+            float time = CurrentTime;
+            for (int index = 0; index < count; index++)
+            {
+                float seedA = Hash01(index * 19 + 5);
+                float seedB = Hash01(index * 37 + 13);
+                float seedC = Hash01(index * 53 + 23);
+                int barIndex = Mathf.Clamp(
+                    Mathf.FloorToInt(seedA * barCount), 0, barCount - 1);
+                float signal = Mathf.Clamp01(heights[barIndex]);
+                float level = Mathf.Clamp01(minimumLevel +
+                    Mathf.Pow(signal, responseCurve) * (1f - minimumLevel) +
+                    beatPulse * 0.62f * beatParticleBurst);
+                float phase = Mathf.Repeat(time *
+                    Mathf.Lerp(0.52f, 1.08f, seedB) + seedC, 1f);
+                float alpha = Mathf.Sin(phase * Mathf.PI) *
+                    Mathf.Clamp01(level * 1.65f +
+                        beatPulse * 0.82f * beatParticleBurst);
+                if (alpha < 0.02f) continue;
+
+                float x = area.xMin + cellWidth * (barIndex + 0.5f) +
+                    (seedB - 0.5f) * cellWidth * 0.9f +
+                    Mathf.Sin((phase + seedA) * Mathf.PI * 2f) *
+                    cellWidth * particleHorizontalDrift;
+                float peakY = area.yMin + level * area.height * 0.42f;
+                float y = Mathf.Min(area.yMax - 2f,
+                    peakY + phase * area.height * particleRiseRatio);
+                float size = Mathf.Lerp(2.4f, 5.4f, seedC) *
+                    particleSizeMultiplier;
+                Color particle = Color.Lerp(quiet, loud, seedB);
+                particle = Color.Lerp(particle, beat, beatPulse * 0.75f);
+                particle.a *= alpha;
+                Color outerGlow = particle;
+                outerGlow.a *= glowOpacity * 0.28f *
+                    particleGlowStrength;
+                AddRect(helper, new Vector2(x, y),
+                    Vector2.one * (size + 5f), outerGlow);
+                Color innerGlow = particle;
+                innerGlow.a *= glowOpacity * 0.62f *
+                    particleGlowStrength;
+                AddRect(helper, new Vector2(x, y),
+                    Vector2.one * (size + 2f), innerGlow);
+                AddRect(helper, new Vector2(x, y),
+                    Vector2.one * size, particle);
+            }
+        }
+
+        private static float Hash01(int value)
+        {
+            uint x = (uint)value;
+            x ^= x >> 16;
+            x *= 0x7feb352d;
+            x ^= x >> 15;
+            x *= 0x846ca68b;
+            x ^= x >> 16;
+            return (x & 0x00ffffff) / 16777215f;
+        }
+
+        private static float CurrentTime
+        {
+            get
+            {
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                    return (float)UnityEditor.EditorApplication.timeSinceStartup;
+#endif
+                return Time.unscaledTime;
+            }
         }
 
         private static void AddCapsule(VertexHelper helper, float centerX,
@@ -205,6 +338,23 @@ namespace FrogCamp.UI
             for (int index = 0; index < boundaryCount; index++)
                 helper.AddTriangle(center, firstBoundary + index,
                     firstBoundary + (index + 1) % boundaryCount);
+        }
+
+        private static void AddRect(VertexHelper helper, Vector2 center,
+            Vector2 size, Color color)
+        {
+            int first = helper.currentVertCount;
+            Vector2 half = size * 0.5f;
+            helper.AddVert(center + new Vector2(-half.x, -half.y),
+                color, Vector2.zero);
+            helper.AddVert(center + new Vector2(-half.x, half.y),
+                color, Vector2.up);
+            helper.AddVert(center + new Vector2(half.x, half.y),
+                color, Vector2.one);
+            helper.AddVert(center + new Vector2(half.x, -half.y),
+                color, Vector2.right);
+            helper.AddTriangle(first, first + 1, first + 2);
+            helper.AddTriangle(first, first + 2, first + 3);
         }
     }
 }
