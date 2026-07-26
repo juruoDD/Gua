@@ -8,6 +8,7 @@ namespace FrogCamp.UI
     {
         [SerializeField] private RectTransform targetMarker;
         [SerializeField] private Image targetImage;
+        [SerializeField] private RectTransform laneLine;
         [SerializeField] private RectTransform[] noteSlots;
         [SerializeField] private Text[] noteLabels;
         [SerializeField] private Image[] noteImages;
@@ -17,8 +18,10 @@ namespace FrogCamp.UI
         [SerializeField] private Text judgementText;
         [SerializeField, Range(1.5f, 5f)] private float leadTime = 3f;
         [SerializeField, Range(0.1f, 0.5f)] private float passWindow = 0.24f;
+        [SerializeField, Range(20f, 80f)]
+        private float noteLineOffset = 60f;
         [SerializeField, Range(0.5f, 1f)]
-        private float noteVisualScale = 0.78f;
+        private float noteVisualScale = 0.68f;
         [SerializeField, Range(0.2f, 0.8f)]
         private float feedbackDuration = 0.46f;
 
@@ -72,6 +75,7 @@ namespace FrogCamp.UI
 
         private void Awake()
         {
+            AlignTargetToLane();
             CacheVisualDefaults();
             SetAllNotesActive(false);
             if (judgementRoot != null)
@@ -290,7 +294,10 @@ namespace FrogCamp.UI
                 judgementText.color = color;
             }
             if (judgementRoot != null)
+            {
+                judgementRoot.SetAsLastSibling();
                 judgementRoot.gameObject.SetActive(true);
+            }
         }
 
         private void AnimateTarget()
@@ -403,8 +410,49 @@ namespace FrogCamp.UI
                 : new Vector3(
                     area.xMin + area.width * 0.085f, 0f, 0f);
             targetX = targetLocal.x;
-            laneY = targetLocal.y;
+            float desiredLocalY =
+                GetLaneCenterY(track) + noteLineOffset;
+            laneY = LocalYToNoteAnchoredY(track, desiredLocalY);
             spawnX = area.xMax - 52f;
+        }
+
+        private float LocalYToNoteAnchoredY(
+            RectTransform track, float localY)
+        {
+            if (noteSlots == null) return localY;
+            for (int index = 0; index < noteSlots.Length; index++)
+            {
+                RectTransform slot = noteSlots[index];
+                if (slot == null || slot.parent != track) continue;
+                float anchor = (slot.anchorMin.y + slot.anchorMax.y) * 0.5f;
+                float anchorLocalY = Mathf.Lerp(
+                    track.rect.yMin, track.rect.yMax, anchor);
+                return localY - anchorLocalY;
+            }
+            return localY;
+        }
+
+        private float GetLaneCenterY(RectTransform track)
+        {
+            if (laneLine == null)
+                return track.rect.yMin + 2f;
+
+            Vector3 laneCenterWorld = laneLine.TransformPoint(
+                laneLine.rect.center);
+            return track.InverseTransformPoint(laneCenterWorld).y;
+        }
+
+        private void AlignTargetToLane()
+        {
+            if (targetMarker == null) return;
+            RectTransform track = (RectTransform)transform;
+            Canvas.ForceUpdateCanvases();
+            float currentY = track.InverseTransformPoint(
+                targetMarker.position).y;
+            float desiredY = GetLaneCenterY(track) + noteLineOffset;
+            Vector2 position = targetMarker.anchoredPosition;
+            position.y += desiredY - currentY;
+            targetMarker.anchoredPosition = position;
         }
 
         private float HitStrength(float remaining)

@@ -49,6 +49,7 @@ namespace FrogCamp.Tasks
         private static readonly Rect InsectTaskWorldArea =
             new Rect(65f, 330f, 235f, 150f);
         private TaskPool taskPool;
+        [SerializeField] private string progressPrefix = "任务进度：";
         [SerializeField] private Text progressText;
         [SerializeField] private Image progressFill;
         [SerializeField] private RectTransform taskList;
@@ -236,7 +237,7 @@ namespace FrogCamp.Tasks
                 new Vector2(0.07f, 0.88f), new Vector2(0.93f, 0.97f),
                 Vector2.zero, Vector2.zero, TextAnchor.MiddleLeft, true);
 
-            progressText = CampUiFactory.Text(panel, "ProgressText", "演绎进度：0%", 25,
+            progressText = CampUiFactory.Text(panel, "ProgressText", "任务进度：0%", 25,
                 CampUiFactory.White, new Vector2(0.07f, 0.76f),
                 new Vector2(0.93f, 0.88f), Vector2.zero, Vector2.zero,
                 TextAnchor.MiddleLeft, true);
@@ -270,7 +271,8 @@ namespace FrogCamp.Tasks
 
         private void RefreshPanel()
         {
-            progressText.text = "演绎进度：" + taskPool.ProgressPercent + "%";
+            progressText.text = progressPrefix +
+                                taskPool.ProgressPercent + "%";
             RectTransform fillRect = progressFill.rectTransform;
             fillRect.anchorMax = new Vector2(taskPool.ProgressPercent / 100f, 1f);
             fillRect.offsetMin = Vector2.zero;
