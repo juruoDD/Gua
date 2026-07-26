@@ -63,7 +63,10 @@ namespace FrogCamp.Gameplay
                 "up", "upRight", "right", "downRight",
                 "down", "downLeft", "left", "upLeft"
             };
-            int facingIndex = System.Array.IndexOf(facings, actor.facing);
+            string shownFacing = !string.IsNullOrEmpty(actor.action) &&
+                                 !string.IsNullOrEmpty(actor.actionFacing)
+                ? actor.actionFacing : actor.facing;
+            int facingIndex = System.Array.IndexOf(facings, shownFacing);
             rect.localRotation = Quaternion.Euler(0f, 0f, -(facingIndex < 0 ? 0 : facingIndex * 45f));
         }
 

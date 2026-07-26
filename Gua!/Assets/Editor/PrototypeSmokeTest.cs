@@ -9,8 +9,8 @@ namespace FrogCamp.Editor
     {
         static PrototypeSmokeTest()
         {
-            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV5", false)) return;
-            SessionState.SetBool("FrogCamp.PrototypeSmokeV5", true);
+            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV7", false)) return;
+            SessionState.SetBool("FrogCamp.PrototypeSmokeV7", true);
             EditorApplication.delayCall += Run;
         }
 
@@ -31,18 +31,49 @@ namespace FrogCamp.Editor
             GameSimulation.StartAction(game, officer.id, "tongue", 2f);
             GameSimulation.Tick(game, .05f, 2.46f);
             GameSimulation.Tick(game, .05f, 2.51f);
-            if (game.npcs.Count != 19 || !officer.stunned)
+            if (game.npcs.Count != 19 || !officer.stunned ||
+                officer.soundEvent != "tongueHit" || officer.soundEventId != 1)
                 throw new System.Exception("军官吐舌命中 AI 的消灭或眩晕逻辑失败。");
 
-            if (CadenceBeatTable.Points.Count != 739 ||
-                Mathf.Abs(CadenceBeatTable.Points[0].time - 22.967244f) > .001f ||
-                Mathf.Abs(CadenceBeatTable.Points[1].time -
-                    CadenceBeatTable.Points[0].time - .6974564f) > .001f ||
+            GameStateData soundGame = GameSimulation.Create(room, 8f);
+            GameActorData croakingPlayer = soundGame.players[1];
+            GameSimulation.StartAction(soundGame, croakingPlayer.id, "croak", 8.1f);
+            if (croakingPlayer.soundEvent != "frog" ||
+                croakingPlayer.soundEventId != 1)
+                throw new System.Exception("真人或 AI 呱叫声音事件没有同步生成。");
+
+            GameActorData missingOfficer = soundGame.players[0];
+            missingOfficer.x = missingOfficer.y = 30f;
+            foreach (GameActorData target in soundGame.npcs)
+            {
+                target.x = 850f;
+                target.y = 450f;
+            }
+            croakingPlayer.x = 900f;
+            croakingPlayer.y = 480f;
+            GameSimulation.StartAction(soundGame, missingOfficer.id, "tongue", 9f);
+            GameSimulation.Tick(soundGame, .05f,
+                9f + GameSimulation.ActionDuration("tongue") + .01f);
+            if (missingOfficer.soundEvent != "tongueMiss" ||
+                missingOfficer.soundEventId != 1)
+                throw new System.Exception("军官吐舌落空声音事件没有同步生成。");
+
+            if (CadenceBeatTable.Points.Count != 100 ||
+                Mathf.Abs(CadenceBeatTable.Points[0].time - 22.927202f) > .001f ||
+                Mathf.Abs(CadenceBeatTable.Points[4].time - 39.669921f) > .001f ||
+                Mathf.Abs(CadenceBeatTable.Points[20].time - 129.585202f) > .001f ||
                 CadenceBeatTable.Points[0].beat != 1 ||
                 CadenceBeatTable.Points[3].beat != 4 ||
-                CadenceBeatTable.Points[4].beat != 1 ||
-                CadenceBeatTable.Points[738].time > 538.00635f)
-                throw new System.Exception("项目跑操等差时间轴读取或生成失败。");
+                CadenceBeatTable.Points[4].beat != 1)
+                throw new System.Exception("项目跑操重复段时间轴读取或生成失败。");
+
+            GameStateData directionGame = GameSimulation.Create(room, 4f);
+            GameActorData directionActor = directionGame.players[1];
+            directionActor.facing = "right";
+            GameSimulation.StartAction(directionGame, directionActor.id, "armRight", 4.1f);
+            GameSimulation.SetInput(directionGame, directionActor.id, -1f, 0f);
+            if (directionActor.facing != "right" || directionActor.actionFacing != "right")
+                throw new System.Exception("动作播放期间角色朝向没有正确锁定。");
 
             GameStateData cadenceGame = GameSimulation.Create(room, 3f);
             GameSimulation.Tick(cadenceGame,
@@ -51,7 +82,7 @@ namespace FrogCamp.Editor
                 cadenceGame.npcs.Exists(item => item.action != "armRight"))
                 throw new System.Exception("跑操第一拍未让全部 NPC 同步执行数字键 1 动作。");
 
-            Debug.Log("原型冒烟测试通过：联机角色、吐舌判定、739 拍项目时间轴、首拍全体 NPC 动作均正常。");
+            Debug.Log("原型冒烟测试通过：联机角色、呱叫与吐舌命中/落空声音事件、100 个重复段拍点、动作朝向锁定、首拍全体 NPC 动作均正常。");
         }
     }
 }

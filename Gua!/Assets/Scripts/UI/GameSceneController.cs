@@ -18,10 +18,15 @@ namespace FrogCamp.UI
         [SerializeField] private FrogAnimationSet greenAnimations = new FrogAnimationSet();
         [SerializeField] private FrogAnimationSet pinkAnimations = new FrogAnimationSet();
         [SerializeField] private AudioClip cadenceMusic;
+        [SerializeField] private AudioClip frogSound;
+        [SerializeField] private AudioClip tongueHitSound;
+        [SerializeField] private AudioClip tongueMissSound;
         [SerializeField] private AudioSource cadenceMusicSource;
 
         private readonly Dictionary<string, FrogActorView> actorViews =
             new Dictionary<string, FrogActorView>();
+        private readonly Dictionary<string, int> actorSoundEventIds =
+            new Dictionary<string, int>();
         private float nextInputTime;
         private int lastAnnouncementId;
         private bool cadenceMusicStarted;
@@ -69,6 +74,12 @@ namespace FrogCamp.UI
                 null, null);
             cadenceMusic = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(
                 "Assets/Sound/跑操音乐.mp3");
+            frogSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Sound/frog.wav");
+            tongueHitSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Sound/frogtonguehit.mp3");
+            tongueMissSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Sound/frogtonguemiss.mp3");
             cadenceMusicSource = GetComponent<AudioSource>();
             if (cadenceMusicSource == null)
                 cadenceMusicSource = gameObject.AddComponent<AudioSource>();
@@ -170,11 +181,13 @@ namespace FrogCamp.UI
                     actorViews.Add(actor.id, view);
                 }
                 view.Apply(actor);
+                SyncActorSound(actor);
             }
             foreach (string id in actorViews.Keys.Where(id => !activeIds.Contains(id)).ToArray())
             {
                 Destroy(actorViews[id].gameObject);
                 actorViews.Remove(id);
+                actorSoundEventIds.Remove(id);
             }
             foreach (FrogActorView view in actorViews.Values.OrderBy(view => view.SortY))
                 view.transform.SetAsLastSibling();
@@ -185,6 +198,32 @@ namespace FrogCamp.UI
                 StopAllCoroutines();
                 StartCoroutine(ShowAnnouncement(room.game.announcement));
             }
+        }
+
+        private void SyncActorSound(GameActorData actor)
+        {
+            int previousId;
+            if (!actorSoundEventIds.TryGetValue(actor.id, out previousId))
+            {
+                actorSoundEventIds[actor.id] = actor.soundEventId;
+                if (actor.soundEventId <= 0) return;
+                bool eventStillActive = actor.soundEvent == "frog"
+                    ? actor.action == "croak"
+                    : actor.action == "tongue";
+                if (!eventStillActive) return;
+            }
+            else
+            {
+                if (actor.soundEventId == previousId) return;
+                actorSoundEventIds[actor.id] = actor.soundEventId;
+            }
+
+            AudioClip clip = null;
+            if (actor.soundEvent == "frog") clip = frogSound;
+            else if (actor.soundEvent == "tongueHit") clip = tongueHitSound;
+            else if (actor.soundEvent == "tongueMiss") clip = tongueMissSound;
+            if (clip != null && cadenceMusicSource != null)
+                cadenceMusicSource.PlayOneShot(clip);
         }
 
         private System.Collections.IEnumerator ShowAnnouncement(string message)

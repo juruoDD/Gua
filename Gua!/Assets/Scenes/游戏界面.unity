@@ -823,6 +823,9 @@ MonoBehaviour:
     whistle: {fileID: 0}
     salute: {fileID: 0}
   cadenceMusic: {fileID: 8300000, guid: 0bdceaa51e983d94780bd8b4b1f483a1, type: 3}
+  frogSound: {fileID: 8300000, guid: b0b180cd1d5d76048b920b21acc7faf8, type: 3}
+  tongueHitSound: {fileID: 8300000, guid: 8d542c7ffb0e2e54296df98c5ae76db6, type: 3}
+  tongueMissSound: {fileID: 8300000, guid: bb8d213ab50aa1947ac659ce4b94c71a, type: 3}
   cadenceMusicSource: {fileID: 714981405}
 --- !u!4 &714981407
 Transform:

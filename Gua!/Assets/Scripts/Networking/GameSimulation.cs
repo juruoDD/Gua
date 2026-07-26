@@ -206,13 +206,15 @@ namespace FrogCamp.Networking
             actor.inputX = actor.inputY = 0f;
             actor.moving = false;
             actor.action = action;
+            actor.actionFacing = actor.facing;
             actor.actionId++;
             actor.actionStartedAt = now;
             actor.actionUntil = now + ActionDuration(action);
             actor.actionResolved = false;
+            if (action == "croak") EmitSound(actor, "frog");
             if (action == "jump")
             {
-                Vector2 direction = FacingVector(actor.facing);
+                Vector2 direction = FacingVector(actor.actionFacing);
                 float speed = JumpDistance / ActionDuration(action);
                 actor.jumpX = direction.x * speed;
                 actor.jumpY = direction.y * speed;
@@ -240,7 +242,11 @@ namespace FrogCamp.Networking
         private static void FinishAction(GameActorData actor, float now)
         {
             if (string.IsNullOrEmpty(actor.action) || now < actor.actionUntil) return;
+            if (actor.role == "officer" && actor.action == "tongue" &&
+                !actor.actionResolved)
+                EmitSound(actor, "tongueMiss");
             actor.action = null;
+            actor.actionFacing = null;
             actor.jumpX = actor.jumpY = 0f;
             actor.actionUntil = 0f;
             actor.actionResolved = false;
@@ -252,7 +258,8 @@ namespace FrogCamp.Networking
                 officer.actionResolved) return;
             float progress = Mathf.Clamp01((now - officer.actionStartedAt) / ActionDuration("tongue"));
             float reach = 10f + Mathf.Sin(progress * Mathf.PI) * (TongueRange - 10f);
-            Vector2 direction = FacingVector(officer.facing);
+            Vector2 direction = FacingVector(string.IsNullOrEmpty(officer.actionFacing)
+                ? officer.facing : officer.actionFacing);
             GameActorData nearest = null;
             float nearestProjection = float.MaxValue;
             foreach (GameActorData target in game.npcs.Concat(game.players))
@@ -273,6 +280,7 @@ namespace FrogCamp.Networking
             }
             if (nearest == null) return;
             officer.actionResolved = true;
+            EmitSound(officer, "tongueHit");
             if (nearest.npc)
             {
                 game.npcs.Remove(nearest);
@@ -287,6 +295,12 @@ namespace FrogCamp.Networking
                 game.announcement = nearest.name + " 被消灭了";
                 game.announcementId++;
             }
+        }
+
+        private static void EmitSound(GameActorData actor, string soundEvent)
+        {
+            actor.soundEvent = soundEvent;
+            actor.soundEventId++;
         }
 
         private static bool Move(GameActorData actor, float dx, float dy, List<GameActorData> actors)

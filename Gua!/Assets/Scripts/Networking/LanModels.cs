@@ -65,8 +65,11 @@ namespace FrogCamp.Networking
         public float inputX;
         public float inputY;
         public string facing = "up";
+        public string actionFacing;
         public string action;
         public int actionId;
+        public string soundEvent;
+        public int soundEventId;
         public float actionStartedAt;
         public float actionUntil;
         public bool actionResolved;
