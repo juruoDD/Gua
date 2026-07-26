@@ -219,12 +219,14 @@ namespace FrogCamp.Networking
         {
             bool edge = IsNearEdge(npc);
             float roll = Random.value;
-            float stopLimit = edge ? 0.08f : 0.34f;
+            float stopLimit = edge ? 0.06f : 0.22f;
             float walkLimit = edge ? 0.84f : 0.76f;
             if (roll < stopLimit)
             {
                 npc.inputX = npc.inputY = 0f;
-                npc.nextDecisionAt = now + (edge ? Random.Range(0.25f, 0.7f) : Random.Range(0.7f, 2.2f));
+                npc.nextDecisionAt = now + (edge
+                    ? Random.Range(0.2f, 0.55f)
+                    : Random.Range(0.5f, 1.4f));
                 return;
             }
             if (roll < walkLimit)
@@ -233,7 +235,7 @@ namespace FrogCamp.Networking
                 npc.inputX = direction.x;
                 npc.inputY = direction.y;
                 npc.facing = FacingFrom(direction);
-                npc.nextDecisionAt = now + Random.Range(0.85f, 2.4f);
+                npc.nextDecisionAt = now + Random.Range(0.95f, 2.8f);
                 return;
             }
             BeginAction(npc, NpcActions[Random.Range(0, NpcActions.Length)], now);
@@ -253,7 +255,8 @@ namespace FrogCamp.Networking
             actor.actionUntil = now + ActionDuration(action);
             actor.actionResolved = false;
             if (action == "croak") EmitSound(actor, "frog");
-            if (action == "tongue") EmitSound(actor, "tongueCast");
+            if (action == "tongue" && !actor.npc)
+                EmitSound(actor, "tongueCast");
             if (action == "whistle") EmitSound(actor, "whistle");
             if (action == "jump")
             {

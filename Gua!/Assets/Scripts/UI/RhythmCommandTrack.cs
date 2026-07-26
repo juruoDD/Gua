@@ -11,7 +11,7 @@ namespace FrogCamp.UI
         [SerializeField] private RectTransform[] noteSlots;
         [SerializeField] private Text[] noteLabels;
         [SerializeField] private Image[] noteImages;
-        [SerializeField, Range(1.5f, 5f)] private float leadTime = 3f;
+        [SerializeField, Range(1.5f, 5f)] private float leadTime = 5f;
         [SerializeField, Range(0.1f, 0.5f)] private float passWindow = 0.22f;
 
         private static readonly string[] Commands =
@@ -82,8 +82,7 @@ namespace FrogCamp.UI
                 int kind = System.Array.IndexOf(Commands, command);
                 if (kind < 0) kind = 0;
                 float travel = Mathf.Clamp01(remaining / leadTime);
-                float x = Mathf.Lerp(targetX, spawnX,
-                    Mathf.SmoothStep(0f, 1f, travel));
+                float x = Mathf.Lerp(targetX, spawnX, travel);
                 float hit = 1f - Mathf.Clamp01(Mathf.Abs(remaining) / 0.16f);
                 targetPulse |= hit > 0f;
 

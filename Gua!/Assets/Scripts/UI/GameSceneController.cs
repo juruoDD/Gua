@@ -155,7 +155,7 @@ namespace FrogCamp.UI
                 new Vector2(0.69f, 0.97f), Vector2.zero, Vector2.zero,
                 TextAnchor.MiddleCenter, true);
             CampUiFactory.Text(map, "Controls",
-                "WASD / 方向键 移动   空格 大跳   H 呱叫   J 吐舌   K 敬礼/吹哨   1-4 伸展",
+                "WASD / 方向键 移动   空格 大跳   Q 呱叫   E 吐舌   R 敬礼/吹哨   U/I/J/K 伸展",
                 15, CampUiFactory.Leaf, new Vector2(0.18f, 0.01f),
                 new Vector2(0.82f, 0.055f), Vector2.zero, Vector2.zero,
                 TextAnchor.MiddleCenter, true);
@@ -179,13 +179,13 @@ namespace FrogCamp.UI
                 service.SetGameInput(x, y);
             }
             if (Input.GetKeyDown(KeyCode.Space)) service.TriggerGameAction("jump");
-            if (Input.GetKeyDown(KeyCode.Alpha1)) service.TriggerGameAction("armRight");
-            if (Input.GetKeyDown(KeyCode.Alpha2)) service.TriggerGameAction("armLeft");
-            if (Input.GetKeyDown(KeyCode.Alpha3)) service.TriggerGameAction("legLeft");
-            if (Input.GetKeyDown(KeyCode.Alpha4)) service.TriggerGameAction("legRight");
-            if (Input.GetKeyDown(KeyCode.H)) service.TriggerGameAction("croak");
-            if (Input.GetKeyDown(KeyCode.J)) service.TriggerGameAction("tongue");
-            if (Input.GetKeyDown(KeyCode.K))
+            if (Input.GetKeyDown(KeyCode.U)) service.TriggerGameAction("armLeft");
+            if (Input.GetKeyDown(KeyCode.I)) service.TriggerGameAction("armRight");
+            if (Input.GetKeyDown(KeyCode.J)) service.TriggerGameAction("legLeft");
+            if (Input.GetKeyDown(KeyCode.K)) service.TriggerGameAction("legRight");
+            if (Input.GetKeyDown(KeyCode.Q)) service.TriggerGameAction("croak");
+            if (Input.GetKeyDown(KeyCode.E)) service.TriggerGameAction("tongue");
+            if (Input.GetKeyDown(KeyCode.R))
             {
                 RoomPlayerData localPlayer = service.GetLocalPlayer();
                 service.TriggerGameAction(localPlayer != null &&

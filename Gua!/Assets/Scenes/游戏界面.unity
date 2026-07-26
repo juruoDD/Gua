@@ -2976,7 +2976,7 @@ MonoBehaviour:
   - {fileID: 479645069}
   - {fileID: 1374153551}
   - {fileID: 1582947809}
-  leadTime: 3
+  leadTime: 5
   passWindow: 0.22
 --- !u!224 &877962730
 RectTransform:
@@ -5216,8 +5216,8 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: "WASD / \u65B9\u5411\u952E \u79FB\u52A8   \u7A7A\u683C \u5927\u8DF3   H
-    \u5471\u53EB   J \u5410\u820C   K \u656C\u793C/\u5439\u54E8   1-4 \u4F38\u5C55"
+  m_Text: "WASD / \u65B9\u5411\u952E \u79FB\u52A8   \u7A7A\u683C \u5927\u8DF3   Q
+    \u5471\u53EB   E \u5410\u820C   R \u656C\u793C/\u5439\u54E8   U/I/J/K \u4F38\u5C55"
 --- !u!222 &1590832393
 CanvasRenderer:
   m_ObjectHideFlags: 0
