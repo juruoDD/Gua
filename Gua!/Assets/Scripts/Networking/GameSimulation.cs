@@ -16,14 +16,15 @@ namespace FrogCamp.Networking
         public const float OfficerMoveSpeed = MoveSpeed;
         public const float AssemblyMoveSpeed = 100f;
         public const float AssemblyCompactionSpeed = 38f;
-        public const float AssemblyCompactionMinimumDistance = 38f;
+        public const float AssemblyCompactionMinimumDistance = 31f;
         public const float ColliderRadius = 13f;
         public const float DeadColliderRadius = 9f;
         public const float JumpDistance = 48f;
         public const float TongueRange = 44f;
-        public const float AssemblyCenterX = WorldWidth * 0.5f;
-        public const float AssemblyCenterY = WorldHeight * 0.5f;
-        public const float CentralLilyRadius = 48f;
+        public const float AssemblyCenterX = 471f;
+        public const float AssemblyCenterY = 274f;
+        public const float CentralAreaRadiusX = 40f;
+        public const float CentralAreaRadiusY = 40f;
         public const int NpcCount = 20;
         public const float AnimationSpeedMultiplier = 1.25f;
         public const float LimbAnimationExtraSpeed = 1.35f;
@@ -74,16 +75,23 @@ namespace FrogCamp.Networking
         };
         private static readonly float[] AssemblyAvoidanceAngles =
         {
-            0f, 20f, -20f, 40f, -40f, 62f, -62f, 82f, -82f
+            0f, 10f, -10f, 20f, -20f, 30f, -30f,
+            40f, -40f, 50f, -50f, 60f, -60f
         };
         private static readonly float[] DispersalAvoidanceAngles =
         {
             0f, 24f, -24f, 48f, -48f, 78f, -78f,
             108f, -108f, 142f, -142f, 180f
         };
-        private static readonly int[] AssemblyRingCounts = { 4, 7, 9, 10 };
-        private static readonly float[] AssemblyRingRadii =
-            { 32f, 64f, 96f, 126f };
+        private static readonly int[] AssemblyRingCounts = { 6, 10, 16, 20 };
+        private static readonly Vector2[] AssemblyRingRadii =
+        {
+            new Vector2(40f, 25f),
+            new Vector2(80f, 55f),
+            new Vector2(120f, 85f),
+            new Vector2(160f, 115f)
+        };
+        private const float AssemblyRotationDegrees = 30f;
 
         public static GameStateData Create(RoomStateData room, float now)
         {
@@ -270,10 +278,12 @@ namespace FrogCamp.Networking
         public static bool IsOnCentralLily(GameActorData actor)
         {
             if (actor == null) return false;
-            float dx = actor.x - AssemblyCenterX;
-            float dy = actor.y - AssemblyCenterY;
-            return dx * dx + dy * dy <=
-                   CentralLilyRadius * CentralLilyRadius;
+            float normalizedX =
+                (actor.x - AssemblyCenterX) / CentralAreaRadiusX;
+            float normalizedY =
+                (actor.y - AssemblyCenterY) / CentralAreaRadiusY;
+            return normalizedX * normalizedX +
+                   normalizedY * normalizedY <= 1f;
         }
 
         private static bool IsOfficerLockedForDance(GameStateData game)
@@ -290,6 +300,17 @@ namespace FrogCamp.Networking
             game.nextDanceBeat = 0;
             officer.inputX = officer.inputY = 0f;
             officer.moving = false;
+            foreach (GameActorData npc in game.npcs)
+            {
+                if (!npc.online || npc.eliminated) continue;
+                npc.action = null;
+                npc.actionFacing = null;
+                npc.actionUntil = 0f;
+                npc.actionResolved = false;
+                npc.jumpX = npc.jumpY = 0f;
+                npc.inputX = npc.inputY = 0f;
+                npc.moving = false;
+            }
             AssignAssemblySlots(game, officer);
             game.danceCommands.Clear();
             for (int action = 0; action < DanceActionCount; action++)
@@ -406,17 +427,21 @@ namespace FrogCamp.Networking
                 if (positionIndex < ringStart + count)
                 {
                     int slot = positionIndex - ringStart;
-                    float radiusJitter =
-                        ((slot * 37 + ring * 19) % 13 - 6) * 0.65f;
-                    float angleJitter =
-                        ((slot * 11 + ring * 7) % 9 - 4) * 0.012f;
-                    float angle = Mathf.PI * 2f * slot / count +
-                                  ring * 0.31f + angleJitter;
-                    float radius = AssemblyRingRadii[ring] + radiusJitter;
+                    float angle = Mathf.PI * 2f * slot / count;
+                    Vector2 radii = AssemblyRingRadii[ring];
+                    Vector2 local = new Vector2(
+                        Mathf.Cos(angle) * radii.x,
+                        Mathf.Sin(angle) * radii.y);
+                    float rotation = AssemblyRotationDegrees * Mathf.Deg2Rad;
+                    Vector2 rotated = new Vector2(
+                        local.x * Mathf.Cos(rotation) -
+                        local.y * Mathf.Sin(rotation),
+                        local.x * Mathf.Sin(rotation) +
+                        local.y * Mathf.Cos(rotation));
                     return new Vector2(
-                        Mathf.Clamp(AssemblyCenterX + Mathf.Cos(angle) * radius,
+                        Mathf.Clamp(AssemblyCenterX + rotated.x,
                             MinX, MaxX),
-                        Mathf.Clamp(AssemblyCenterY + Mathf.Sin(angle) * radius,
+                        Mathf.Clamp(AssemblyCenterY + rotated.y,
                             MinY, MaxY));
                 }
                 ringStart += count;
@@ -439,7 +464,8 @@ namespace FrogCamp.Networking
                 return true;
 
             float minimumSquared =
-                Mathf.Pow(ColliderRadius * 2f + 2f, 2f);
+                AssemblyCompactionMinimumDistance *
+                AssemblyCompactionMinimumDistance;
             foreach (GameActorData player in game.players)
             {
                 if (!player.online) continue;
@@ -460,7 +486,8 @@ namespace FrogCamp.Networking
             GameActorData officer, Vector2 position, GameActorData except)
         {
             float minimumSquared =
-                Mathf.Pow(ColliderRadius * 2f + 2f, 2f);
+                AssemblyCompactionMinimumDistance *
+                AssemblyCompactionMinimumDistance;
             foreach (GameActorData npc in game.npcs)
             {
                 if (npc == except || npc.assemblySlot < 0) continue;
@@ -624,7 +651,7 @@ namespace FrogCamp.Networking
             actor.actionUntil = now + ActionDuration(action);
             actor.actionResolved = false;
             if (emitSound && action == "croak") EmitSound(actor, "frog");
-            if (emitSound && action == "tongue" && !actor.npc)
+            if (emitSound && action == "tongue" && actor.role == "officer")
                 EmitSound(actor, "tongueCast");
             if (emitSound && action == "whistle") EmitSound(actor, "whistle");
             if (action == "jump")
@@ -834,8 +861,7 @@ namespace FrogCamp.Networking
                     game, officer, npc, -1);
             if (npc.assemblySlot < 0)
             {
-                npc.inputX = npc.inputY = 0f;
-                npc.moving = false;
+                MoveNpcTowardAssemblyCenter(npc, npcIndex, deltaTime, actors);
                 return;
             }
             Vector2 npcPosition = new Vector2(npc.x, npc.y);
@@ -891,6 +917,28 @@ namespace FrogCamp.Networking
                     npc.assemblyBlockedTime = 0f;
                 }
             }
+        }
+
+        private static void MoveNpcTowardAssemblyCenter(
+            GameActorData npc, int npcIndex, float deltaTime,
+            List<GameActorData> actors)
+        {
+            Vector2 direction = new Vector2(
+                AssemblyCenterX - npc.x, AssemblyCenterY - npc.y);
+            if (direction.sqrMagnitude < 0.001f)
+            {
+                npc.inputX = npc.inputY = 0f;
+                npc.moving = false;
+                return;
+            }
+
+            npc.moving = MoveWithAssemblyAvoidance(
+                npc, direction.normalized,
+                AssemblyMoveSpeed * deltaTime,
+                npcIndex, actors, false,
+                AssemblyCompactionMinimumDistance);
+            if (!npc.moving)
+                npc.inputX = npc.inputY = 0f;
         }
 
         private static void CompactNpcTowardOfficer(GameActorData officer,
