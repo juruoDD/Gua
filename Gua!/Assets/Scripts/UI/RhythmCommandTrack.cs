@@ -17,12 +17,13 @@ namespace FrogCamp.UI
         private static readonly string[] Commands =
         {
             "armLeft", "armRight", "legLeft", "legRight",
-            "moveUp", "moveDown", "moveLeft", "moveRight"
+            "moveUp", "moveDown", "moveLeft", "moveRight",
+            "salute", "croak"
         };
         private static readonly string[] Labels =
         {
             "左手", "右手", "左腿", "右腿",
-            "↑", "↓", "←", "→"
+            "↑", "↓", "←", "→", "敬礼", "呱叫"
         };
 
         public void Configure(RectTransform marker, Image markerImage,
@@ -43,6 +44,11 @@ namespace FrogCamp.UI
         public void Apply(GameStateData game)
         {
             if (game == null || noteSlots == null) return;
+            if (GameSimulation.IsDanceSequenceActive(game))
+            {
+                ApplyDanceSequence(game);
+                return;
+            }
             var beats = CadenceBeatTable.Points;
             RectTransform track = (RectTransform)transform;
             Rect area = track.rect;
@@ -104,6 +110,85 @@ namespace FrogCamp.UI
                     (targetPulse ? 1.16f : 1f);
             if (targetImage != null)
                 targetImage.color = targetPulse
+                    ? CampUiFactory.Hex("#F0A35B")
+                    : new Color(CampUiFactory.Accent.r,
+                        CampUiFactory.Accent.g, CampUiFactory.Accent.b, 0.92f);
+        }
+
+        private void ApplyDanceSequence(GameStateData game)
+        {
+            if (game.specialMusicPhase == GameSimulation.DancePhaseWhistle)
+            {
+                SetAllNotesActive(false);
+                SetTargetPulse(false);
+                return;
+            }
+            if (game.specialMusicPhase == GameSimulation.DancePhasePause)
+            {
+                SetAllNotesActive(false);
+                SetTargetPulse(false);
+                return;
+            }
+
+            float danceTime = game.specialMusicPhase == GameSimulation.DancePhaseBell
+                ? game.specialMusicTime - GameSimulation.BellSoundDuration
+                : game.specialMusicTime;
+            int commandIndex = Mathf.Max(0, game.nextDanceBeat - 1);
+            Rect area = ((RectTransform)transform).rect;
+            float targetX = area.xMin + area.width * 0.085f;
+            float spawnX = area.xMax - 48f;
+            bool targetPulse = false;
+
+            for (int slot = 0; slot < noteSlots.Length; slot++)
+            {
+                if (commandIndex < 0 ||
+                    commandIndex >= GameSimulation.DanceActionCount ||
+                    commandIndex >= game.danceCommands.Count)
+                {
+                    noteSlots[slot].gameObject.SetActive(false);
+                    continue;
+                }
+
+                float beatTime = GameSimulation.DanceActionStartTime +
+                                 commandIndex * GameSimulation.DanceActionInterval;
+                float remaining = beatTime - danceTime;
+                if (remaining > leadTime || remaining < -passWindow)
+                {
+                    noteSlots[slot].gameObject.SetActive(false);
+                    commandIndex++;
+                    continue;
+                }
+
+                string command = game.danceCommands[commandIndex];
+                int kind = System.Array.IndexOf(Commands, command);
+                if (kind < 0) kind = 0;
+                float travel = Mathf.Clamp01(remaining / leadTime);
+                float hit = 1f - Mathf.Clamp01(Mathf.Abs(remaining) / 0.16f);
+                targetPulse |= hit > 0f;
+
+                RectTransform root = noteSlots[slot];
+                root.gameObject.SetActive(true);
+                root.anchoredPosition = new Vector2(
+                    Mathf.Lerp(targetX, spawnX, travel), 0f);
+                root.localScale = Vector3.one * Mathf.Lerp(1f, 1.2f, hit);
+                noteLabels[slot].text = Labels[kind];
+                Color baseColor = CommandColor(kind);
+                noteImages[slot].color = Color.Lerp(
+                    baseColor, CampUiFactory.Hex("#F0A35B"), hit);
+                noteLabels[slot].color = Color.Lerp(
+                    CampUiFactory.White, Color.white, hit);
+                commandIndex++;
+            }
+
+            SetTargetPulse(targetPulse);
+        }
+
+        private void SetTargetPulse(bool pulse)
+        {
+            if (targetMarker != null)
+                targetMarker.localScale = Vector3.one * (pulse ? 1.16f : 1f);
+            if (targetImage != null)
+                targetImage.color = pulse
                     ? CampUiFactory.Hex("#F0A35B")
                     : new Color(CampUiFactory.Accent.r,
                         CampUiFactory.Accent.g, CampUiFactory.Accent.b, 0.92f);

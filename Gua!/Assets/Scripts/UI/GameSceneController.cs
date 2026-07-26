@@ -23,6 +23,8 @@ namespace FrogCamp.UI
         [SerializeField] private AudioClip tongueCorrectSound;
         [SerializeField] private AudioClip tongueWrongSound;
         [SerializeField] private AudioClip whistleSound;
+        private AudioClip bellSound;
+        private AudioClip danceMusic;
         [SerializeField] private AudioSource cadenceMusicSource;
         [SerializeField] private AudioSource sfxSource;
         [SerializeField] private Button settingsButton;
@@ -80,6 +82,10 @@ namespace FrogCamp.UI
                 if (cadenceMusicSource.clip == null)
                     cadenceMusicSource.clip = cadenceMusic;
             }
+            bellSound = Resources.Load<AudioClip>("Sound/铃声");
+            danceMusic = Resources.Load<AudioClip>("Sound/跳舞");
+            if (bellSound == null || danceMusic == null)
+                Debug.LogError("未找到铃声或跳舞音乐资源。");
             musicWaveform.Configure(cadenceMusicSource);
         }
 
@@ -533,14 +539,43 @@ namespace FrogCamp.UI
 
         private void SyncCadenceMusic(GameStateData game)
         {
-            if (musicWaveform != null)
+            if (!GameSimulation.IsDanceSequenceActive(game) &&
+                musicWaveform != null)
                 musicWaveform.SetMusicTime(game.musicTime);
             if (cadenceMusicSource == null || cadenceMusic == null) return;
-            if (cadenceMusicSource.clip != cadenceMusic)
-                cadenceMusicSource.clip = cadenceMusic;
 
-            float desiredTime = Mathf.Clamp(game.musicTime, 0f, cadenceMusic.length);
-            if (desiredTime >= cadenceMusic.length - 0.05f)
+            if (game.specialMusicPhase == GameSimulation.DancePhaseWhistle ||
+                game.specialMusicPhase == GameSimulation.DancePhasePause)
+            {
+                if (cadenceMusicSource.isPlaying) cadenceMusicSource.Stop();
+                cadenceMusicStarted = false;
+                return;
+            }
+
+            AudioClip desiredClip = cadenceMusic;
+            float desiredTime = game.musicTime;
+            if (game.specialMusicPhase == GameSimulation.DancePhaseBell)
+            {
+                desiredClip = bellSound;
+                desiredTime = game.specialMusicTime;
+            }
+            else if (game.specialMusicPhase == GameSimulation.DancePhaseMusic)
+            {
+                desiredClip = danceMusic;
+                desiredTime = game.specialMusicTime;
+            }
+            if (desiredClip == null) return;
+
+            bool clipChanged = cadenceMusicSource.clip != desiredClip;
+            if (clipChanged)
+            {
+                cadenceMusicSource.Stop();
+                cadenceMusicSource.clip = desiredClip;
+                cadenceMusicStarted = false;
+            }
+
+            desiredTime = Mathf.Clamp(desiredTime, 0f, desiredClip.length);
+            if (desiredTime >= desiredClip.length - 0.05f)
             {
                 if (cadenceMusicSource.isPlaying) cadenceMusicSource.Stop();
                 return;
@@ -551,10 +586,8 @@ namespace FrogCamp.UI
                 cadenceMusicSource.time = desiredTime;
                 cadenceMusicSource.Play();
                 cadenceMusicStarted = true;
-                return;
             }
-
-            if (Mathf.Abs(cadenceMusicSource.time - desiredTime) > 0.12f)
+            else if (Mathf.Abs(cadenceMusicSource.time - desiredTime) > 0.12f)
                 cadenceMusicSource.time = desiredTime;
         }
 

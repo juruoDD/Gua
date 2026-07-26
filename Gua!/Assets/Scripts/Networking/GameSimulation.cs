@@ -14,14 +14,39 @@ namespace FrogCamp.Networking
         public const float MaxY = 512f;
         public const float MoveSpeed = 42f;
         public const float OfficerMoveSpeed = MoveSpeed;
-        public const float ColliderRadius = 14f;
+        public const float AssemblyMoveSpeed = 100f;
+        public const float AssemblyCompactionSpeed = 38f;
+        public const float AssemblyCompactionMinimumDistance = 38f;
+        public const float ColliderRadius = 13f;
+        public const float DeadColliderRadius = 9f;
         public const float JumpDistance = 48f;
         public const float TongueRange = 44f;
+        public const float AssemblyCenterX = WorldWidth * 0.5f;
+        public const float AssemblyCenterY = WorldHeight * 0.5f;
+        public const float CentralLilyRadius = 48f;
         public const int NpcCount = 20;
         public const float AnimationSpeedMultiplier = 1.25f;
         public const float LimbAnimationExtraSpeed = 1.35f;
+        public const string DancePhaseWhistle = "whistle";
+        public const string DancePhaseBell = "bell";
+        public const string DancePhaseMusic = "dance";
+        public const string DancePhasePause = "pause";
+        public const float WhistleSoundDuration = 1f;
+        public const float BellSoundDuration = 4.2f;
+        public const float PostDancePauseDuration = 2f;
+        public const int DanceBeatCount = 24;
+        public const int DanceIntroBeatCount = 8;
+        public const float DanceBeatInterval = 7.836719f / 16f;
+        public const float DanceMusicDuration = DanceBeatInterval * DanceBeatCount;
+        public const float DanceActionStartTime =
+            DanceBeatInterval * DanceIntroBeatCount;
+        public const int DanceActionCount =
+            (DanceBeatCount - DanceIntroBeatCount) / 2;
+        public const float DanceActionInterval = DanceBeatInterval * 2f;
 
         private const float EdgeMargin = 90f;
+        private const float AssemblyArrivalTolerance = 14f;
+        private const float AssemblyReassignDelay = 1.2f;
         private const float CadenceSequenceMaxGap = 1.5f;
         private const float CadenceDecisionGuard = 0.05f;
         private static readonly string[] Facings =
@@ -43,6 +68,22 @@ namespace FrogCamp.Networking
         {
             "moveUp", "moveDown", "moveLeft", "moveRight"
         };
+        private static readonly string[] DanceCommands =
+        {
+            "salute", "croak"
+        };
+        private static readonly float[] AssemblyAvoidanceAngles =
+        {
+            0f, 20f, -20f, 40f, -40f, 62f, -62f, 82f, -82f
+        };
+        private static readonly float[] DispersalAvoidanceAngles =
+        {
+            0f, 24f, -24f, 48f, -48f, 78f, -78f,
+            108f, -108f, 142f, -142f, 180f
+        };
+        private static readonly int[] AssemblyRingCounts = { 4, 7, 9, 10 };
+        private static readonly float[] AssemblyRingRadii =
+            { 32f, 64f, 96f, 126f };
 
         public static GameStateData Create(RoomStateData room, float now)
         {
@@ -73,6 +114,12 @@ namespace FrogCamp.Networking
         {
             GameActorData actor = FindPlayer(game, id);
             if (!CanControl(actor)) return;
+            if (actor.role == "officer" && IsOfficerLockedForDance(game))
+            {
+                actor.inputX = actor.inputY = 0f;
+                actor.moving = false;
+                return;
+            }
             if (!string.IsNullOrEmpty(actor.action))
             {
                 actor.inputX = actor.inputY = 0f;
@@ -88,20 +135,41 @@ namespace FrogCamp.Networking
         {
             GameActorData actor = FindPlayer(game, id);
             if (!CanControl(actor) || !string.IsNullOrEmpty(actor.action)) return;
+            if (actor.role == "officer" && IsOfficerLockedForDance(game)) return;
+            if (action == "whistle" && IsDanceSequenceActive(game)) return;
+            if (action == "whistle" && actor.role == "officer" &&
+                !IsOnCentralLily(actor))
+            {
+                game.announcement = "军官必须站在中央荷叶上才能吹哨";
+                game.announcementId++;
+                return;
+            }
             bool allowed = actor.role == "officer"
                 ? action == "jump" || action == "croak" || action == "tongue" || action == "whistle"
                 : action == "jump" || action == "armLeft" || action == "armRight" ||
                   action == "legLeft" || action == "legRight" ||
                   action == "croak" || action == "tongue" || action == "salute";
-            if (allowed) BeginAction(actor, action, now);
+            if (!allowed) return;
+            BeginAction(actor, action, now);
+            if (action == "whistle") StartDanceSequence(game, actor);
         }
 
         public static void Tick(GameStateData game, float deltaTime, float now)
         {
             if (game == null) return;
-            game.musicTime += deltaTime;
-            WrapCadenceMusic(game);
-            TriggerCadenceActions(game, now);
+            bool danceSequenceActive = IsDanceSequenceActive(game);
+            if (danceSequenceActive)
+                AdvanceDanceSequence(game, deltaTime, now);
+            else
+            {
+                game.musicTime += deltaTime;
+                WrapCadenceMusic(game);
+                TriggerCadenceActions(game, now);
+            }
+            bool dancePerformanceActive = IsOfficerLockedForDance(game);
+            bool assemblyActive =
+                game.specialMusicPhase == DancePhaseWhistle ||
+                game.specialMusicPhase == DancePhaseBell;
             List<GameActorData> actors = game.players.Concat(game.npcs).ToList();
             foreach (GameActorData actor in game.players)
             {
@@ -109,6 +177,12 @@ namespace FrogCamp.Networking
                 if (actor.eliminated || !actor.online) continue;
                 FinishAction(actor, now);
                 if (actor.stunned)
+                {
+                    actor.inputX = actor.inputY = 0f;
+                    actor.moving = false;
+                    continue;
+                }
+                if (actor.role == "officer" && dancePerformanceActive)
                 {
                     actor.inputX = actor.inputY = 0f;
                     actor.moving = false;
@@ -125,8 +199,10 @@ namespace FrogCamp.Networking
                 else actor.moving = false;
                 ResolveOfficerTongue(game, actor, now);
             }
-            foreach (GameActorData npc in game.npcs.ToArray())
+            GameActorData[] npcs = game.npcs.ToArray();
+            for (int npcIndex = 0; npcIndex < npcs.Length; npcIndex++)
             {
+                GameActorData npc = npcs[npcIndex];
                 if (npc.eliminated || !npc.online) continue;
                 FinishAction(npc, now);
                 if (npc.action == "jump")
@@ -144,6 +220,21 @@ namespace FrogCamp.Networking
                 if (!string.IsNullOrEmpty(npc.action))
                 {
                     npc.moving = false;
+                    continue;
+                }
+                if (danceSequenceActive)
+                {
+                    if (assemblyActive)
+                        MoveNpcTowardAssembly(
+                            game, npc, npcIndex, deltaTime, actors);
+                    else if (game.specialMusicPhase == DancePhasePause)
+                        MoveNpcDispersal(
+                            npc, npcIndex, deltaTime, actors);
+                    else
+                    {
+                        npc.inputX = npc.inputY = 0f;
+                        npc.moving = false;
+                    }
                     continue;
                 }
                 if (now >= npc.nextDecisionAt) ChooseNpcBehaviour(npc, now);
@@ -164,6 +255,273 @@ namespace FrogCamp.Networking
             game.musicTime = loopStart +
                 Mathf.Repeat(game.musicTime - loopEnd, loopLength);
             game.nextCadenceBeat = CadenceBeatTable.LoopStartIndex;
+        }
+
+        public static bool IsDanceSequenceActive(GameStateData game)
+        {
+            return game != null && !string.IsNullOrEmpty(game.specialMusicPhase);
+        }
+
+        public static bool IsOnCentralLily(GameActorData actor)
+        {
+            if (actor == null) return false;
+            float dx = actor.x - AssemblyCenterX;
+            float dy = actor.y - AssemblyCenterY;
+            return dx * dx + dy * dy <=
+                   CentralLilyRadius * CentralLilyRadius;
+        }
+
+        private static bool IsOfficerLockedForDance(GameStateData game)
+        {
+            return IsDanceSequenceActive(game) &&
+                   game.specialMusicPhase != DancePhasePause;
+        }
+
+        private static void StartDanceSequence(
+            GameStateData game, GameActorData officer)
+        {
+            game.specialMusicPhase = DancePhaseWhistle;
+            game.specialMusicTime = 0f;
+            game.nextDanceBeat = 0;
+            officer.inputX = officer.inputY = 0f;
+            officer.moving = false;
+            AssignAssemblySlots(game, officer);
+            game.danceCommands.Clear();
+            for (int action = 0; action < DanceActionCount; action++)
+                game.danceCommands.Add(
+                    DanceCommands[Random.Range(0, DanceCommands.Length)]);
+        }
+
+        private static void AssignAssemblySlots(
+            GameStateData game, GameActorData officer)
+        {
+            foreach (GameActorData npc in game.npcs)
+            {
+                npc.assemblySlot = -1;
+                npc.assemblyBlockedTime = 0f;
+            }
+
+            int ringStart = 0;
+            for (int ring = 0; ring < AssemblyRingCounts.Length; ring++)
+            {
+                List<int> availableSlots = new List<int>();
+                for (int slot = 0; slot < AssemblyRingCounts[ring]; slot++)
+                {
+                    int positionIndex = ringStart + slot;
+                    Vector2 position =
+                        GetAssemblyPosition(officer, positionIndex);
+                    if (IsAssemblyPositionBlocked(game, position)) continue;
+                    if (IsTooCloseToAssignedPosition(
+                        game, officer, position, null)) continue;
+                    availableSlots.Add(positionIndex);
+                }
+
+                while (availableSlots.Count > 0)
+                {
+                    GameActorData bestNpc = null;
+                    int bestSlot = -1;
+                    float bestDistanceSquared = float.MaxValue;
+                    foreach (GameActorData npc in game.npcs)
+                    {
+                        if (!npc.online || npc.eliminated ||
+                            npc.assemblySlot >= 0) continue;
+                        Vector2 npcPosition = new Vector2(npc.x, npc.y);
+                        foreach (int slot in availableSlots)
+                        {
+                            float distanceSquared =
+                                (GetAssemblyPosition(officer, slot) -
+                                 npcPosition).sqrMagnitude;
+                            if (distanceSquared >= bestDistanceSquared) continue;
+                            bestDistanceSquared = distanceSquared;
+                            bestNpc = npc;
+                            bestSlot = slot;
+                        }
+                    }
+                    if (bestNpc == null) break;
+                    bestNpc.assemblySlot = bestSlot;
+                    availableSlots.Remove(bestSlot);
+                }
+                ringStart += AssemblyRingCounts[ring];
+            }
+        }
+
+        private static int FindAvailableAssemblySlot(GameStateData game,
+            GameActorData officer, GameActorData npc, int excludedSlot)
+        {
+            int maximumRing = excludedSlot < 0
+                ? AssemblyRingCounts.Length - 1
+                : GetAssemblyRing(excludedSlot);
+            int ringStart = 0;
+            for (int ring = 0; ring <= maximumRing; ring++)
+            {
+                int bestSlot = -1;
+                float bestDistanceSquared = float.MaxValue;
+                for (int slot = 0; slot < AssemblyRingCounts[ring]; slot++)
+                {
+                    int positionIndex = ringStart + slot;
+                    if (positionIndex == excludedSlot ||
+                        IsAssemblySlotUsed(game, positionIndex, npc))
+                        continue;
+                    Vector2 position =
+                        GetAssemblyPosition(officer, positionIndex);
+                    if (IsAssemblyPositionBlocked(game, position) ||
+                        IsTooCloseToAssignedPosition(
+                            game, officer, position, npc))
+                        continue;
+                    float distanceSquared =
+                        (position - new Vector2(npc.x, npc.y)).sqrMagnitude;
+                    if (distanceSquared >= bestDistanceSquared) continue;
+                    bestDistanceSquared = distanceSquared;
+                    bestSlot = positionIndex;
+                }
+                if (bestSlot >= 0) return bestSlot;
+                ringStart += AssemblyRingCounts[ring];
+            }
+            return -1;
+        }
+
+        private static int GetAssemblyRing(int positionIndex)
+        {
+            int ringStart = 0;
+            for (int ring = 0; ring < AssemblyRingCounts.Length; ring++)
+            {
+                ringStart += AssemblyRingCounts[ring];
+                if (positionIndex < ringStart) return ring;
+            }
+            return AssemblyRingCounts.Length - 1;
+        }
+
+        private static Vector2 GetAssemblyPosition(
+            GameActorData officer, int positionIndex)
+        {
+            int ringStart = 0;
+            for (int ring = 0; ring < AssemblyRingCounts.Length; ring++)
+            {
+                int count = AssemblyRingCounts[ring];
+                if (positionIndex < ringStart + count)
+                {
+                    int slot = positionIndex - ringStart;
+                    float radiusJitter =
+                        ((slot * 37 + ring * 19) % 13 - 6) * 0.65f;
+                    float angleJitter =
+                        ((slot * 11 + ring * 7) % 9 - 4) * 0.012f;
+                    float angle = Mathf.PI * 2f * slot / count +
+                                  ring * 0.31f + angleJitter;
+                    float radius = AssemblyRingRadii[ring] + radiusJitter;
+                    return new Vector2(
+                        Mathf.Clamp(AssemblyCenterX + Mathf.Cos(angle) * radius,
+                            MinX, MaxX),
+                        Mathf.Clamp(AssemblyCenterY + Mathf.Sin(angle) * radius,
+                            MinY, MaxY));
+                }
+                ringStart += count;
+            }
+            return new Vector2(AssemblyCenterX, AssemblyCenterY);
+        }
+
+        private static bool IsAssemblySlotUsed(
+            GameStateData game, int slot, GameActorData except)
+        {
+            return game.npcs.Any(npc =>
+                npc != except && npc.online && !npc.eliminated &&
+                npc.assemblySlot == slot);
+        }
+
+        private static bool IsAssemblyPositionBlocked(
+            GameStateData game, Vector2 position)
+        {
+            float minimumSquared =
+                Mathf.Pow(ColliderRadius * 2f + 2f, 2f);
+            foreach (GameActorData player in game.players)
+            {
+                if (!player.online) continue;
+                Vector2 offset =
+                    new Vector2(player.x, player.y) - position;
+                if (offset.sqrMagnitude < minimumSquared) return true;
+            }
+            foreach (GameActorData npc in game.npcs)
+            {
+                if (!npc.online || !npc.eliminated) continue;
+                Vector2 offset = new Vector2(npc.x, npc.y) - position;
+                if (offset.sqrMagnitude < minimumSquared) return true;
+            }
+            return false;
+        }
+
+        private static bool IsTooCloseToAssignedPosition(GameStateData game,
+            GameActorData officer, Vector2 position, GameActorData except)
+        {
+            float minimumSquared =
+                Mathf.Pow(ColliderRadius * 2f + 2f, 2f);
+            foreach (GameActorData npc in game.npcs)
+            {
+                if (npc == except || npc.assemblySlot < 0) continue;
+                Vector2 assigned =
+                    GetAssemblyPosition(officer, npc.assemblySlot);
+                if ((assigned - position).sqrMagnitude < minimumSquared)
+                    return true;
+            }
+            return false;
+        }
+
+        private static void AdvanceDanceSequence(
+            GameStateData game, float deltaTime, float now)
+        {
+            game.specialMusicTime += deltaTime;
+            if (game.specialMusicPhase == DancePhaseWhistle &&
+                game.specialMusicTime >= WhistleSoundDuration)
+            {
+                game.specialMusicTime -= WhistleSoundDuration;
+                game.specialMusicPhase = DancePhaseBell;
+            }
+            if (game.specialMusicPhase == DancePhaseBell &&
+                game.specialMusicTime >= BellSoundDuration)
+            {
+                game.specialMusicTime -= BellSoundDuration;
+                game.specialMusicPhase = DancePhaseMusic;
+                game.nextDanceBeat = 0;
+            }
+            if (game.specialMusicPhase == DancePhaseMusic)
+            {
+                while (game.nextDanceBeat < DanceActionCount &&
+                       DanceActionStartTime +
+                       game.nextDanceBeat * DanceActionInterval <=
+                       game.specialMusicTime)
+                {
+                    string action = game.nextDanceBeat < game.danceCommands.Count
+                        ? game.danceCommands[game.nextDanceBeat]
+                        : DanceCommands[game.nextDanceBeat % DanceCommands.Length];
+                    bool croakSoundEmitted = false;
+                    foreach (GameActorData npc in game.npcs)
+                    {
+                        if (npc.eliminated || !npc.online) continue;
+                        bool emitSound = action == "croak" && !croakSoundEmitted;
+                        BeginAction(npc, action, now, emitSound);
+                        if (emitSound) croakSoundEmitted = true;
+                        npc.nextDecisionAt = now + DanceActionInterval;
+                    }
+                    game.nextDanceBeat++;
+                }
+
+                if (game.specialMusicTime < DanceMusicDuration) return;
+                game.specialMusicPhase = DancePhasePause;
+                game.specialMusicTime -= DanceMusicDuration;
+                game.nextDanceBeat = 0;
+                foreach (GameActorData npc in game.npcs)
+                {
+                    npc.assemblySlot = -1;
+                    npc.assemblyBlockedTime = 0f;
+                }
+                PrepareNpcDispersal(game);
+            }
+
+            if (game.specialMusicPhase != DancePhasePause ||
+                game.specialMusicTime < PostDancePauseDuration) return;
+            game.specialMusicPhase = null;
+            game.specialMusicTime = 0f;
+            game.nextDanceBeat = 0;
+            game.musicTime = 0f;
+            game.nextCadenceBeat = 0;
         }
 
         public static void SetPlayerOffline(GameStateData game, string id)
@@ -244,7 +602,8 @@ namespace FrogCamp.Networking
             npc.nextDecisionAt = npc.actionUntil + Random.Range(0.25f, 0.9f);
         }
 
-        private static void BeginAction(GameActorData actor, string action, float now)
+        private static void BeginAction(
+            GameActorData actor, string action, float now, bool emitSound = true)
         {
             actor.inputX = actor.inputY = 0f;
             actor.moving = false;
@@ -256,10 +615,10 @@ namespace FrogCamp.Networking
             actor.actionStartedAt = now;
             actor.actionUntil = now + ActionDuration(action);
             actor.actionResolved = false;
-            if (action == "croak") EmitSound(actor, "frog");
-            if (action == "tongue" && !actor.npc)
+            if (emitSound && action == "croak") EmitSound(actor, "frog");
+            if (emitSound && action == "tongue" && !actor.npc)
                 EmitSound(actor, "tongueCast");
-            if (action == "whistle") EmitSound(actor, "whistle");
+            if (emitSound && action == "whistle") EmitSound(actor, "whistle");
             if (action == "jump")
             {
                 Vector2 direction = FacingVector(actor.actionFacing);
@@ -406,6 +765,38 @@ namespace FrogCamp.Networking
             {
                 actor.x = nextX; actor.y = nextY; return true;
             }
+
+            Vector2 movement = new Vector2(nextX - actor.x, nextY - actor.y);
+            foreach (GameActorData other in actors)
+            {
+                if (other.id == actor.id || !other.online) continue;
+                float minimum = MinimumDistance(
+                    actor, other, ColliderRadius * 2f);
+                float blockedX = nextX - other.x;
+                float blockedY = nextY - other.y;
+                if (blockedX * blockedX + blockedY * blockedY >=
+                    minimum * minimum) continue;
+
+                Vector2 normal = new Vector2(
+                    actor.x - other.x, actor.y - other.y);
+                if (normal.sqrMagnitude < 0.001f)
+                    normal = new Vector2(-movement.y, movement.x);
+                normal.Normalize();
+
+                float inward = Vector2.Dot(movement, normal);
+                Vector2 slide = inward < 0f
+                    ? movement - normal * inward
+                    : movement;
+                if (slide.sqrMagnitude < 0.0001f) continue;
+
+                float slideX = Mathf.Clamp(actor.x + slide.x, MinX, MaxX);
+                float slideY = Mathf.Clamp(actor.y + slide.y, MinY, MaxY);
+                if (!CanOccupy(actor, slideX, slideY, actors)) continue;
+                actor.x = slideX;
+                actor.y = slideY;
+                return true;
+            }
+
             if (CanOccupy(actor, nextX, actor.y, actors))
             {
                 actor.x = nextX; return true;
@@ -413,6 +804,183 @@ namespace FrogCamp.Networking
             if (CanOccupy(actor, actor.x, nextY, actors))
             {
                 actor.y = nextY; return true;
+            }
+            return false;
+        }
+
+        private static void MoveNpcTowardAssembly(GameStateData game,
+            GameActorData npc, int npcIndex, float deltaTime,
+            List<GameActorData> actors)
+        {
+            GameActorData officer = game.players.FirstOrDefault(actor =>
+                actor.role == "officer" && actor.online && !actor.eliminated);
+            if (officer == null)
+            {
+                npc.inputX = npc.inputY = 0f;
+                npc.moving = false;
+                return;
+            }
+
+            if (npc.assemblySlot < 0)
+                npc.assemblySlot = FindAvailableAssemblySlot(
+                    game, officer, npc, -1);
+            if (npc.assemblySlot < 0)
+            {
+                npc.inputX = npc.inputY = 0f;
+                npc.moving = false;
+                return;
+            }
+            Vector2 npcPosition = new Vector2(npc.x, npc.y);
+            Vector2 bestPosition =
+                GetAssemblyPosition(officer, npc.assemblySlot);
+            Vector2 officerPosition =
+                new Vector2(AssemblyCenterX, AssemblyCenterY);
+            float currentOfficerDistance =
+                Vector2.Distance(npcPosition, officerPosition);
+            float assignedOfficerDistance =
+                Vector2.Distance(bestPosition, officerPosition);
+            if (currentOfficerDistance <=
+                assignedOfficerDistance + AssemblyArrivalTolerance)
+            {
+                CompactNpcTowardOfficer(
+                    officer, npc, npcIndex, deltaTime, actors);
+                return;
+            }
+            Vector2 offset = bestPosition - npcPosition;
+            float remainingDistance =
+                offset.magnitude - AssemblyArrivalTolerance;
+            if (remainingDistance <= 0f)
+            {
+                npc.inputX = npc.inputY = 0f;
+                npc.moving = false;
+                npc.assemblyBlockedTime = 0f;
+                return;
+            }
+
+            Vector2 direction = offset.normalized;
+            Vector2 previousDirection =
+                new Vector2(npc.inputX, npc.inputY);
+            if (previousDirection.sqrMagnitude > 0.1f)
+                direction = Vector2.Lerp(
+                    previousDirection.normalized, direction, 0.22f).normalized;
+            float speed = Mathf.Lerp(32f, AssemblyMoveSpeed,
+                Mathf.Clamp01(remainingDistance / 80f));
+            float distance = Mathf.Min(
+                speed * deltaTime, remainingDistance);
+            npc.moving = MoveWithAssemblyAvoidance(
+                npc, direction, distance, npcIndex, actors, false);
+            if (npc.moving)
+                npc.assemblyBlockedTime = 0f;
+            else
+            {
+                npc.inputX = npc.inputY = 0f;
+                npc.assemblyBlockedTime += deltaTime;
+                if (npc.assemblyBlockedTime >= AssemblyReassignDelay)
+                {
+                    int replacement = FindAvailableAssemblySlot(
+                        game, officer, npc, npc.assemblySlot);
+                    if (replacement >= 0) npc.assemblySlot = replacement;
+                    npc.assemblyBlockedTime = 0f;
+                }
+            }
+        }
+
+        private static void CompactNpcTowardOfficer(GameActorData officer,
+            GameActorData npc, int npcIndex, float deltaTime,
+            List<GameActorData> actors)
+        {
+            Vector2 direction = new Vector2(
+                AssemblyCenterX - npc.x, AssemblyCenterY - npc.y);
+            if (direction.sqrMagnitude < 0.001f)
+            {
+                npc.inputX = npc.inputY = 0f;
+                npc.moving = false;
+                return;
+            }
+
+            npc.moving = MoveWithAssemblyAvoidance(
+                npc, direction.normalized,
+                AssemblyCompactionSpeed * deltaTime,
+                npcIndex, actors, false,
+                AssemblyCompactionMinimumDistance);
+            npc.assemblyBlockedTime = 0f;
+            if (!npc.moving)
+                npc.inputX = npc.inputY = 0f;
+        }
+
+        private static void PrepareNpcDispersal(GameStateData game)
+        {
+            foreach (GameActorData npc in game.npcs)
+            {
+                if (!npc.online || npc.eliminated) continue;
+                Vector2 direction = new Vector2(
+                    npc.x - AssemblyCenterX,
+                    npc.y - AssemblyCenterY).normalized;
+                if (direction.sqrMagnitude < 0.001f)
+                    direction = Random.insideUnitCircle.normalized;
+                float angle =
+                    Random.Range(-80f, 80f) * Mathf.Deg2Rad;
+                float sine = Mathf.Sin(angle);
+                float cosine = Mathf.Cos(angle);
+                direction = new Vector2(
+                    direction.x * cosine - direction.y * sine,
+                    direction.x * sine + direction.y * cosine);
+                float speedScale = Random.Range(0.65f, 1f);
+                npc.inputX = direction.x * speedScale;
+                npc.inputY = direction.y * speedScale;
+                npc.facing = FacingFrom(direction);
+            }
+        }
+
+        private static void MoveNpcDispersal(GameActorData npc,
+            int npcIndex, float deltaTime, List<GameActorData> actors)
+        {
+            Vector2 input = new Vector2(npc.inputX, npc.inputY);
+            if (input.sqrMagnitude < 0.001f)
+            {
+                npc.moving = false;
+                return;
+            }
+            float speedScale = Mathf.Clamp01(input.magnitude);
+            npc.moving = MoveWithAssemblyAvoidance(
+                npc, input.normalized, MoveSpeed * speedScale * deltaTime,
+                npcIndex, actors, false);
+            if (!npc.moving)
+                npc.inputX = npc.inputY = 0f;
+        }
+
+        private static bool MoveWithAssemblyAvoidance(GameActorData npc,
+            Vector2 desiredDirection, float distance, int npcIndex,
+            List<GameActorData> actors, bool allowRetreat,
+            float minimumSeparation = ColliderRadius * 2f)
+        {
+            float sidePreference = npcIndex % 2 == 0 ? 1f : -1f;
+            float[] avoidanceAngles = allowRetreat
+                ? DispersalAvoidanceAngles : AssemblyAvoidanceAngles;
+            foreach (float sourceAngle in avoidanceAngles)
+            {
+                float radians = sourceAngle * sidePreference * Mathf.Deg2Rad;
+                float sine = Mathf.Sin(radians);
+                float cosine = Mathf.Cos(radians);
+                Vector2 direction = new Vector2(
+                    desiredDirection.x * cosine - desiredDirection.y * sine,
+                    desiredDirection.x * sine + desiredDirection.y * cosine);
+                float nextX = Mathf.Clamp(
+                    npc.x + direction.x * distance, MinX, MaxX);
+                float nextY = Mathf.Clamp(
+                    npc.y + direction.y * distance, MinY, MaxY);
+                if (Mathf.Abs(nextX - npc.x) < 0.001f &&
+                    Mathf.Abs(nextY - npc.y) < 0.001f)
+                    continue;
+                if (!CanOccupy(
+                    npc, nextX, nextY, actors, minimumSeparation)) continue;
+
+                npc.x = nextX;
+                npc.y = nextY;
+                npc.inputX = direction.x;
+                npc.inputY = direction.y;
+                npc.facing = FacingFrom(direction);
+                return true;
             }
             return false;
         }
@@ -427,15 +995,37 @@ namespace FrogCamp.Networking
         private static bool CanOccupy(GameActorData actor, float x, float y,
             IEnumerable<GameActorData> actors)
         {
-            float minimum = ColliderRadius * 2f;
+            return CanOccupy(
+                actor, x, y, actors, ColliderRadius * 2f);
+        }
+
+        private static bool CanOccupy(GameActorData actor, float x, float y,
+            IEnumerable<GameActorData> actors, float minimum)
+        {
             foreach (GameActorData other in actors)
             {
-                if (other.id == actor.id || other.eliminated || !other.online) continue;
+                if (other.id == actor.id || !other.online) continue;
                 float dx = other.x - x;
                 float dy = other.y - y;
-                if (dx * dx + dy * dy < minimum * minimum) return false;
+                float pairMinimum = MinimumDistance(actor, other, minimum);
+                if (dx * dx + dy * dy <
+                    pairMinimum * pairMinimum) return false;
             }
             return true;
+        }
+
+        private static float MinimumDistance(
+            GameActorData actor, GameActorData other, float fallback)
+        {
+            return actor.eliminated || other.eliminated
+                ? CollisionRadius(actor) + CollisionRadius(other)
+                : fallback;
+        }
+
+        private static float CollisionRadius(GameActorData actor)
+        {
+            return actor != null && actor.eliminated
+                ? DeadColliderRadius : ColliderRadius;
         }
 
         private static bool CanControl(GameActorData actor)
