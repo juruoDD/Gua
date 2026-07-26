@@ -97,12 +97,13 @@ namespace FrogCamp.UI
                 LoadFrogTexture("伸右手"), LoadFrogTexture("伸左手"),
                 LoadFrogTexture("伸左腿"), LoadFrogTexture("伸右腿"),
                 LoadFrogTexture("张嘴"), LoadFrogTexture("吐舌"), null,
-                LoadFrogTexture("敬礼"));
+                LoadFrogTexture("敬礼"), null, LoadFrogTexture("绿色死亡"));
             pinkAnimations.SetTextures(
                 LoadFrogTexture("粉色待机"), LoadFrogTexture("粉色小跳"),
                 LoadFrogTexture("粉色大跳"), null, null, null, null,
                 LoadFrogTexture("粉色张嘴"), LoadFrogTexture("粉色吐舌"),
-                LoadFrogTexture("粉色吹哨"), null);
+                LoadFrogTexture("粉色吹哨"), null,
+                LoadFrogTexture("粉色晕眩"), null);
             RefreshAudioAssetsForEditor();
             cadenceMusicSource = GetComponent<AudioSource>();
             if (cadenceMusicSource == null)
@@ -592,7 +593,7 @@ namespace FrogCamp.UI
             if (cadenceMusicSource != null) cadenceMusicSource.Stop();
             if (sfxSource != null) sfxSource.Stop();
             LanRoomService.Instance.LeaveRoom();
-            SceneManager.LoadScene(CampScenes.Start);
+            SceneTransitionOverlay.LoadScene(CampScenes.Start);
         }
     }
 }

@@ -17,15 +17,20 @@ namespace FrogCamp.Gameplay
         [SerializeField] private Texture2D tongue;
         [SerializeField] private Texture2D whistle;
         [SerializeField] private Texture2D salute;
+        [SerializeField] private Texture2D stun;
+        [SerializeField] private Texture2D death;
 
         public Texture2D Idle { get { return idle; } }
         public Texture2D Hop { get { return hop; } }
+        public Texture2D Stun { get { return stun; } }
+        public Texture2D Death { get { return death; } }
 
         public void SetTextures(Texture2D idleTexture, Texture2D hopTexture,
             Texture2D jumpTexture, Texture2D armLeftTexture, Texture2D armRightTexture,
             Texture2D legLeftTexture, Texture2D legRightTexture,
             Texture2D croakTexture, Texture2D tongueTexture,
-            Texture2D whistleTexture, Texture2D saluteTexture)
+            Texture2D whistleTexture, Texture2D saluteTexture,
+            Texture2D stunTexture, Texture2D deathTexture)
         {
             idle = idleTexture;
             hop = hopTexture;
@@ -38,6 +43,8 @@ namespace FrogCamp.Gameplay
             tongue = tongueTexture;
             whistle = whistleTexture;
             salute = saluteTexture;
+            stun = stunTexture;
+            death = deathTexture;
         }
 
         public Texture2D GetActionTexture(string action)
@@ -53,6 +60,8 @@ namespace FrogCamp.Gameplay
                 case "tongue": return tongue;
                 case "whistle": return whistle;
                 case "salute": return salute;
+                case "stun": return stun;
+                case "death": return death;
                 default: return null;
             }
         }

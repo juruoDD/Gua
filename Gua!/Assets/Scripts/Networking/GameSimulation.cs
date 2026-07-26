@@ -127,6 +127,7 @@ namespace FrogCamp.Networking
             }
             foreach (GameActorData npc in game.npcs.ToArray())
             {
+                if (npc.eliminated || !npc.online) continue;
                 FinishAction(npc, now);
                 if (npc.action == "jump")
                 {
@@ -186,6 +187,7 @@ namespace FrogCamp.Networking
                 case "tongue": return 0.92f / AnimationSpeedMultiplier;
                 case "whistle": return 1f / AnimationSpeedMultiplier;
                 case "salute": return 1f / AnimationSpeedMultiplier;
+                case "death": return 0.9f / AnimationSpeedMultiplier;
                 case "moveUp":
                 case "moveDown":
                 case "moveLeft":
@@ -344,19 +346,31 @@ namespace FrogCamp.Networking
             if (nearest.npc)
             {
                 EmitSound(officer, "tongueWrong");
-                game.npcs.Remove(nearest);
+                BeginDeath(nearest, now);
                 officer.stunnedUntil = now + 5f;
                 officer.inputX = officer.inputY = 0f;
             }
             else
             {
                 EmitSound(officer, "tongueCorrect");
-                nearest.eliminated = true;
-                nearest.inputX = nearest.inputY = 0f;
-                nearest.action = null;
+                BeginDeath(nearest, now);
                 game.announcement = nearest.name + " 被消灭了";
                 game.announcementId++;
             }
+        }
+
+        private static void BeginDeath(GameActorData actor, float now)
+        {
+            actor.eliminated = true;
+            actor.inputX = actor.inputY = 0f;
+            actor.moving = false;
+            actor.action = "death";
+            actor.actionFacing = actor.facing;
+            actor.actionId++;
+            actor.actionStartedAt = now;
+            actor.actionUntil = now + ActionDuration("death");
+            actor.actionResolved = true;
+            actor.jumpX = actor.jumpY = 0f;
         }
 
         private static void EmitSound(GameActorData actor, string soundEvent)

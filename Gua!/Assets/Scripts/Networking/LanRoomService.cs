@@ -8,6 +8,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using FrogCamp.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -215,7 +216,7 @@ namespace FrogCamp.Networking
             gameTickAccumulator = 0f;
             BroadcastState();
             SendToAll(new LanMessage { type = "start" });
-            SceneManager.LoadScene(CampScenes.Game);
+            SceneTransitionOverlay.LoadScene(CampScenes.Game);
         }
 
         public bool CanStart(out string reason)
@@ -524,7 +525,7 @@ namespace FrogCamp.Networking
             }
             else if (message.type == "start")
             {
-                SceneManager.LoadScene(CampScenes.Game);
+                SceneTransitionOverlay.LoadScene(CampScenes.Game);
             }
             else if (message.type == "error")
             {

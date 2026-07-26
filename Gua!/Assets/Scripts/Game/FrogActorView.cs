@@ -50,7 +50,7 @@ namespace FrogCamp.Gameplay
         public void Apply(GameActorData actor, bool immediate = false)
         {
             data = actor;
-            gameObject.SetActive(!actor.eliminated && actor.online);
+            gameObject.SetActive(actor.online);
             targetPosition = new Vector2(actor.x * 2f - 960f, 540f - actor.y * 2f);
             if (immediate) rect.anchoredPosition = targetPosition;
             if (actor.actionId != actionId)
@@ -72,26 +72,31 @@ namespace FrogCamp.Gameplay
 
         private void Update()
         {
-            if (data == null || data.eliminated) return;
+            if (data == null) return;
             rect.anchoredPosition = Vector2.Lerp(rect.anchoredPosition, targetPosition,
                 1f - Mathf.Exp(-14f * Time.unscaledDeltaTime));
             float duration = GameSimulation.ActionDuration(data.action);
             float progress = duration > 0f
                 ? Mathf.Clamp01((Time.unscaledTime - localActionStart) / duration) : 0f;
+            string specialState = data.eliminated ? "death"
+                : data.stunned ? "stun" : data.action;
             Texture2D actionTexture = animations == null
-                ? null : animations.GetActionTexture(data.action);
-            bool canUseFrames = frameImage != null && animations != null && !data.stunned;
+                ? null : animations.GetActionTexture(specialState);
+            bool canUseFrames = frameImage != null && animations != null;
             bool useActionFrames = canUseFrames && actionTexture != null;
-            bool useHopFrames = canUseFrames && animations.Hop != null &&
+            bool useHopFrames = !data.eliminated && !data.stunned &&
+                                canUseFrames && animations.Hop != null &&
                                 ((string.IsNullOrEmpty(data.action) && data.moving) ||
                                  GameSimulation.IsCadenceMoveAction(data.action));
-            bool useIdleFrames = canUseFrames && animations.Idle != null &&
+            bool useIdleFrames = !data.eliminated && !data.stunned &&
+                                 canUseFrames && animations.Idle != null &&
                                  string.IsNullOrEmpty(data.action) && !data.moving;
             float hop = data.moving && !useHopFrames
                 ? Mathf.Abs(Mathf.Sin(Time.unscaledTime * 7.5f)) : 0f;
             float jump = data.action == "jump" && !useActionFrames
                 ? Mathf.Sin(progress * Mathf.PI) : 0f;
-            float idle = !useIdleFrames && !data.moving && string.IsNullOrEmpty(data.action)
+            float idle = !data.eliminated && !data.stunned &&
+                         !useIdleFrames && !data.moving && string.IsNullOrEmpty(data.action)
                 ? Mathf.Sin(Time.unscaledTime * 4.5f) : 0f;
             rect.localScale = new Vector3(1f + idle * .018f,
                 1f - idle * .025f, 1f);
@@ -103,13 +108,25 @@ namespace FrogCamp.Gameplay
                 frameImage.enabled = useExternalFrames;
                 if (useExternalFrames)
                 {
-                    string state = useActionFrames ? data.action :
+                    string state = useActionFrames ? specialState :
                         (useHopFrames ? "hop" : "idle");
                     int frameCount = FrogAnimationSet.GetFrameCount(state);
-                    int frame = useActionFrames
-                        ? Mathf.Min(frameCount - 1, Mathf.FloorToInt(progress * frameCount))
-                        : Mathf.FloorToInt(Time.unscaledTime * 8f *
+                    int frame;
+                    if (state == "death")
+                    {
+                        frame = Mathf.Min(frameCount - 1,
+                            Mathf.FloorToInt(progress * frameCount));
+                    }
+                    else if (state == "stun" || !useActionFrames)
+                    {
+                        frame = Mathf.FloorToInt(Time.unscaledTime * 8f *
                             GameSimulation.AnimationSpeedMultiplier) % frameCount;
+                    }
+                    else
+                    {
+                        frame = Mathf.Min(frameCount - 1,
+                            Mathf.FloorToInt(progress * frameCount));
+                    }
                     frameImage.texture = useActionFrames ? actionTexture :
                         (useHopFrames ? animations.Hop : animations.Idle);
                     frameImage.uvRect = new Rect(frame / (float)frameCount, 0f,
@@ -120,6 +137,10 @@ namespace FrogCamp.Gameplay
                         ? new Vector2(82f, 164f) : new Vector2(82f, 82f);
                     frameRect.anchoredPosition =
                         FrogAnimationSet.GetFrameOffset(state, frame);
+                    float alpha = state == "death"
+                        ? Mathf.Lerp(1f, 0.48f, Mathf.SmoothStep(0f, 1f, progress))
+                        : 1f;
+                    frameImage.color = new Color(1f, 1f, 1f, alpha);
                 }
             }
             graphic.SetPose(data.role, data.action, progress, data.moving,

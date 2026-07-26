@@ -9,8 +9,8 @@ namespace FrogCamp.Editor
     {
         static PrototypeSmokeTest()
         {
-            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV9", false)) return;
-            SessionState.SetBool("FrogCamp.PrototypeSmokeV9", true);
+            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV10", false)) return;
+            SessionState.SetBool("FrogCamp.PrototypeSmokeV10", true);
             EditorApplication.delayCall += Run;
         }
 
@@ -31,9 +31,13 @@ namespace FrogCamp.Editor
             GameSimulation.StartAction(game, officer.id, "tongue", 2f);
             GameSimulation.Tick(game, .05f, 2.46f);
             GameSimulation.Tick(game, .05f, 2.51f);
-            if (game.npcs.Count != 19 || !officer.stunned ||
+            if (game.npcs.Count != 20 || !npc.eliminated ||
+                npc.action != "death" || !officer.stunned ||
                 officer.soundEvent != "tongueWrong" || officer.soundEventId != 2)
-                throw new System.Exception("军官吐舌命中 AI 的消灭或眩晕逻辑失败。");
+                throw new System.Exception("军官吐舌命中 AI 后保留尸体或眩晕逻辑失败。");
+            GameSimulation.Tick(game, 4f, 7f);
+            if (game.npcs.Count != 20 || !npc.eliminated || npc.action != "death")
+                throw new System.Exception("绿色 AI 尸体没有保持死亡最终状态。");
 
             GameStateData soundGame = GameSimulation.Create(room, 8f);
             GameActorData croakingPlayer = soundGame.players[1];
@@ -125,7 +129,7 @@ namespace FrogCamp.Editor
                     item.action != "moveLeft" || item.actionFacing != "left"))
                 throw new System.Exception("音乐循环后 NPC 动作没有与循环起点同步。");
 
-            Debug.Log("原型冒烟测试通过：音乐按指定区间循环，NPC 拍点动作与循环起点同步。");
+            Debug.Log("原型冒烟测试通过：粉色军官眩晕、绿色死亡尸体保留、音乐循环与 NPC 拍点同步均正常。");
         }
     }
 }
