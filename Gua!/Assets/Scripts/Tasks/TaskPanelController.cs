@@ -54,11 +54,8 @@ namespace FrogCamp.Tasks
         [SerializeField] private Image progressFill;
         [SerializeField] private RectTransform taskList;
         [SerializeField] private GameObject reedTaskArea;
-        [SerializeField] private Text reedTaskAreaText;
         [SerializeField] private GameObject birdNestTaskArea;
-        [SerializeField] private Text birdNestTaskAreaText;
         [SerializeField] private GameObject cabinetTaskArea;
-        [SerializeField] private Text cabinetTaskAreaText;
         private float reedIdleTime;
         private float birdNestIdleTime;
         private float birdNestSlackIdleTime;
@@ -165,36 +162,36 @@ namespace FrogCamp.Tasks
                 new TaskDefinition
                 {
                     id = BirdNestTaskId,
-                    title = "从鸟窝中偷钥匙",
-                    description = "鸟窝附近静止 5 秒",
+                    title = "鸟窝偷钥匙",
+                    description = "鸟窝静止 5 秒",
                     guaranteed = true
                 },
                 new TaskDefinition
                 {
                     id = CabinetTaskId,
-                    title = "打开军官私房柜子",
-                    description = "靠近私房柜吐舌头",
+                    title = "打开私房柜",
+                    description = "私房柜旁吐舌",
                     guaranteed = true
                 },
                 new TaskDefinition
                 {
                     id = AttackOfficerTaskId,
                     title = "袭击军官蛙",
-                    description = "对军官蛙吐舌头",
+                    description = "对军官蛙吐舌",
                     guaranteed = true
                 },
                 new TaskDefinition
                 {
                     id = ReedTaskId,
-                    title = "在芦苇丛中偷懒 5s",
-                    description = "芦苇丛附近静止 5 秒",
+                    title = "芦苇丛偷懒",
+                    description = "芦苇丛静止 5 秒",
                     guaranteed = true
                 },
                 new TaskDefinition
                 {
                     id = EatInsectsTaskId,
                     title = "偷吃小飞虫",
-                    description = "小飞虫附近吐舌头"
+                    description = "小飞虫旁吐舌"
                 }
             };
             const float rowHeight = 0.188f;
@@ -443,30 +440,23 @@ namespace FrogCamp.Tasks
         private void BuildReedTaskArea(Transform map)
         {
             BuildTaskArea(map, "ReedTaskArea", ReedTaskWorldArea,
-                new Color(0.44f, 0.72f, 0.48f, 0.13f),
-                "偷懒判定区  ·  保持不动 5s",
-                out reedTaskArea, out reedTaskAreaText);
+                out reedTaskArea);
         }
 
         private void BuildBirdNestTaskArea(Transform map)
         {
             BuildTaskArea(map, "BirdNestTaskArea", BirdNestTaskWorldArea,
-                new Color(0.84f, 0.70f, 0.35f, 0.16f),
-                "鸟窝判定区  ·  保持不动 5s",
-                out birdNestTaskArea, out birdNestTaskAreaText);
+                out birdNestTaskArea);
         }
 
         private void BuildCabinetTaskArea(Transform map)
         {
             BuildTaskArea(map, "CabinetTaskArea", CabinetTaskWorldArea,
-                new Color(0.56f, 0.70f, 0.88f, 0.15f),
-                "军官私房柜  ·  吐舌头打开",
-                out cabinetTaskArea, out cabinetTaskAreaText);
+                out cabinetTaskArea);
         }
 
         private static void BuildTaskArea(Transform map, string objectName,
-            Rect worldArea, Color color, string label,
-            out GameObject areaObject, out Text areaText)
+            Rect worldArea, out GameObject areaObject)
         {
             float minX = worldArea.xMin / GameSimulation.WorldWidth;
             float maxX = worldArea.xMax / GameSimulation.WorldWidth;
@@ -481,7 +471,6 @@ namespace FrogCamp.Tasks
                 new Vector2(minX, minY), new Vector2(maxX, maxY),
                 Vector2.zero, Vector2.zero);
             areaObject = area.gameObject;
-            areaText = null;
         }
 
         private void UpdateReedTask()
@@ -508,17 +497,6 @@ namespace FrogCamp.Tasks
 
             if (idling) reedIdleTime += Time.unscaledDeltaTime;
             else reedIdleTime = 0f;
-
-            float shownTime = Mathf.Min(ReedTaskDuration, reedIdleTime);
-            if (reedTaskAreaText != null)
-                reedTaskAreaText.text = !isSoldier
-                    ? "仅士兵可完成此任务"
-                    : !inside
-                        ? "偷懒判定区  ·  进入芦苇丛"
-                        : !idling
-                            ? "请停下并保持不动"
-                            : "正在偷懒  " + shownTime.ToString("0.0") +
-                              " / 5.0s";
 
             if (reedIdleTime >= ReedTaskDuration)
             {
@@ -552,19 +530,6 @@ namespace FrogCamp.Tasks
                 ? birdNestIdleTime + Time.unscaledDeltaTime : 0f;
             birdNestSlackIdleTime = slackTaskActive && idling
                 ? birdNestSlackIdleTime + Time.unscaledDeltaTime : 0f;
-            float shownTime = Mathf.Min(IdleTaskDuration,
-                keyTaskActive ? birdNestIdleTime : birdNestSlackIdleTime);
-            if (birdNestTaskAreaText != null)
-                birdNestTaskAreaText.text = !isSoldier
-                    ? "仅士兵可完成此任务"
-                    : !inside
-                        ? "进入鸟窝附近"
-                        : !idling
-                            ? "请停下并保持不动"
-                            : (keyTaskActive
-                                ? "正在偷钥匙  "
-                                : "正在偷懒  ") +
-                              shownTime.ToString("0.0") + " / 5.0s";
             if (keyTaskActive &&
                 birdNestIdleTime >= BirdNestTaskDuration)
             {
@@ -602,22 +567,6 @@ namespace FrogCamp.Tasks
             bool idling = IsIdling(actor, inside);
             officerHomeIdleTime = slackTaskActive && idling
                 ? officerHomeIdleTime + Time.unscaledDeltaTime : 0f;
-
-            if (cabinetTaskAreaText != null)
-            {
-                if (!isSoldier)
-                    cabinetTaskAreaText.text = "仅士兵可完成此任务";
-                else if (!inside)
-                    cabinetTaskAreaText.text = "进入军官家附近";
-                else if (cabinetTaskActive)
-                    cabinetTaskAreaText.text = "对军官私房柜吐舌头";
-                else if (!idling)
-                    cabinetTaskAreaText.text = "请停下并保持不动";
-                else
-                    cabinetTaskAreaText.text = "正在偷懒  " +
-                        Mathf.Min(IdleTaskDuration, officerHomeIdleTime)
-                            .ToString("0.0") + " / 5.0s";
-            }
 
             if (slackTaskActive &&
                 officerHomeIdleTime >= IdleTaskDuration)

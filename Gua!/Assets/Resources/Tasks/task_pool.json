@@ -4,78 +4,78 @@
   "tasks": [
     {
       "id": "slack_in_reeds",
-      "title": "在芦苇丛中偷懒 5s",
-      "description": "芦苇丛附近静止 5 秒",
+      "title": "芦苇丛偷懒",
+      "description": "芦苇丛静止 5 秒",
       "guaranteed": false,
       "prerequisites": []
     },
     {
       "id": "steal_nest_key",
-      "title": "从鸟窝中偷钥匙",
-      "description": "鸟窝附近静止 5 秒",
+      "title": "鸟窝偷钥匙",
+      "description": "鸟窝静止 5 秒",
       "guaranteed": false,
       "prerequisites": []
     },
     {
       "id": "open_officer_cabinet",
-      "title": "打开军官私房柜子",
-      "description": "靠近私房柜吐舌头",
+      "title": "打开私房柜",
+      "description": "私房柜旁吐舌",
       "guaranteed": false,
       "prerequisites": ["steal_nest_key"]
     },
     {
       "id": "attack_officer",
       "title": "袭击军官蛙",
-      "description": "对军官蛙吐舌头",
+      "description": "对军官蛙吐舌",
       "guaranteed": true,
       "prerequisites": ["open_officer_cabinet"]
     },
     {
       "id": "eat_small_insects",
       "title": "偷吃小飞虫",
-      "description": "小飞虫附近吐舌头",
+      "description": "小飞虫旁吐舌",
       "guaranteed": false,
       "prerequisites": []
     },
     {
       "id": "idle_officer_home",
-      "title": "在军官家偷懒",
-      "description": "军官家附近静止 5 秒",
+      "title": "军官家偷懒",
+      "description": "军官家静止 5 秒",
       "guaranteed": false,
       "prerequisites": []
     },
     {
       "id": "idle_bird_nest",
-      "title": "在鸟窝中偷懒",
-      "description": "鸟窝附近静止 5 秒",
+      "title": "鸟窝偷懒",
+      "description": "鸟窝静止 5 秒",
       "guaranteed": false,
       "prerequisites": []
     },
     {
       "id": "croak_five_times",
-      "title": "连续呱呱叫 5 声",
+      "title": "连续呱叫 5 声",
       "description": "连续呱叫 5 声",
       "guaranteed": false,
       "prerequisites": []
     },
     {
       "id": "lick_disruptor_companion",
-      "title": "找到一名捣乱蛙同伴并舔他的屁股",
-      "description": "从捣乱蛙同伴背后吐舌头",
+      "title": "舔捣乱蛙屁股",
+      "description": "从同伴背后吐舌",
       "guaranteed": true,
       "prerequisites": []
     },
     {
       "id": "roll_call_late",
       "title": "点名迟到",
-      "description": "集合结束时仍留在远处",
+      "description": "集合结束仍在远处",
       "guaranteed": false,
       "prerequisites": []
     },
     {
       "id": "lick_ten_unique_frogs",
-      "title": "舔到 10 只不同的蛙",
-      "description": "单人舔满 10 只不同蛙",
+      "title": "舔 10 只不同蛙",
+      "description": "每名士兵单独计数",
       "guaranteed": false,
       "prerequisites": []
     },
