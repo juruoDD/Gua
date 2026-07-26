@@ -22,6 +22,8 @@ namespace FrogCamp.Networking
         public const float LimbAnimationExtraSpeed = 1.35f;
 
         private const float EdgeMargin = 90f;
+        private const float CadenceSequenceMaxGap = 1.5f;
+        private const float CadenceDecisionGuard = 0.05f;
         private static readonly string[] Facings =
         {
             "up", "upRight", "right", "downRight",
@@ -35,6 +37,10 @@ namespace FrogCamp.Networking
         private static readonly string[] CadenceCommands =
         {
             "armLeft", "armRight", "legLeft", "legRight",
+            "moveUp", "moveDown", "moveLeft", "moveRight"
+        };
+        private static readonly string[] CadenceOpeningCommands =
+        {
             "moveUp", "moveDown", "moveLeft", "moveRight"
         };
 
@@ -53,9 +59,13 @@ namespace FrogCamp.Networking
                 PlaceActor(npc, game.players.Concat(game.npcs).ToList());
                 game.npcs.Add(npc);
             }
-            for (int index = 0; index < CadenceBeatTable.Points.Count; index++)
-                game.cadenceCommands.Add(
-                    CadenceCommands[Random.Range(0, CadenceCommands.Length)]);
+            IReadOnlyList<CadenceBeatPoint> cadenceBeats = CadenceBeatTable.Points;
+            for (int index = 0; index < cadenceBeats.Count; index++)
+            {
+                string[] choices = IsCadenceSequenceStart(cadenceBeats, index)
+                    ? CadenceOpeningCommands : CadenceCommands;
+                game.cadenceCommands.Add(choices[Random.Range(0, choices.Length)]);
+            }
             return game;
         }
 
@@ -90,6 +100,7 @@ namespace FrogCamp.Networking
         {
             if (game == null) return;
             game.musicTime += deltaTime;
+            WrapCadenceMusic(game);
             TriggerCadenceActions(game, now);
             List<GameActorData> actors = game.players.Concat(game.npcs).ToList();
             foreach (GameActorData actor in game.players)
@@ -140,6 +151,18 @@ namespace FrogCamp.Networking
                 if (!npc.moving && (npc.inputX != 0f || npc.inputY != 0f))
                     npc.nextDecisionAt = now;
             }
+        }
+
+        private static void WrapCadenceMusic(GameStateData game)
+        {
+            float loopStart = CadenceBeatTable.LoopStartTime;
+            float loopEnd = CadenceBeatTable.LoopEndTime;
+            float loopLength = loopEnd - loopStart;
+            if (loopLength <= 0f || game.musicTime < loopEnd) return;
+
+            game.musicTime = loopStart +
+                Mathf.Repeat(game.musicTime - loopEnd, loopLength);
+            game.nextCadenceBeat = CadenceBeatTable.LoopStartIndex;
         }
 
         public static void SetPlayerOffline(GameStateData game, string id)
@@ -247,17 +270,34 @@ namespace FrogCamp.Networking
             while (game.nextCadenceBeat < beats.Count &&
                    beats[game.nextCadenceBeat].time <= game.musicTime)
             {
+                int currentBeatIndex = game.nextCadenceBeat;
                 string action = game.nextCadenceBeat < game.cadenceCommands.Count
                     ? game.cadenceCommands[game.nextCadenceBeat]
                     : CadenceCommands[game.nextCadenceBeat % CadenceCommands.Length];
+                int nextBeatIndex = currentBeatIndex + 1;
+                bool sequenceContinues = nextBeatIndex < beats.Count &&
+                    beats[nextBeatIndex].time - beats[currentBeatIndex].time <=
+                    CadenceSequenceMaxGap;
                 foreach (GameActorData npc in game.npcs)
                 {
                     if (npc.eliminated || !npc.online) continue;
                     BeginAction(npc, action, now);
-                    npc.nextDecisionAt = npc.actionUntil + 0.15f;
+                    npc.nextDecisionAt = sequenceContinues
+                        ? now + Mathf.Max(0f,
+                            beats[nextBeatIndex].time - game.musicTime) +
+                            CadenceDecisionGuard
+                        : npc.actionUntil + 0.15f;
                 }
                 game.nextCadenceBeat++;
             }
+        }
+
+        private static bool IsCadenceSequenceStart(
+            IReadOnlyList<CadenceBeatPoint> beats, int index)
+        {
+            return index == 0 || index > 0 &&
+                beats[index].time - beats[index - 1].time >
+                CadenceSequenceMaxGap;
         }
 
         private static void FinishAction(GameActorData actor, float now)

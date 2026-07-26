@@ -20,6 +20,7 @@ namespace FrogCamp.UI
             new Color(0.88f, 0.55f, 0.30f, 1f);
 
         private readonly float[] spectrum = new float[256];
+        private readonly float[] secondarySpectrum = new float[256];
         private float[] heights;
         private float[] targets;
         private float beatPulse;
@@ -45,11 +46,13 @@ namespace FrogCamp.UI
 
         public void SetMusicTime(float musicTime)
         {
-            if (lastMusicTime < 0f || musicTime < lastMusicTime)
+            if (lastMusicTime < 0f)
             {
                 lastMusicTime = musicTime;
                 return;
             }
+            if (musicTime < lastMusicTime)
+                lastMusicTime = CadenceBeatTable.LoopStartTime - 0.001f;
 
             var beats = CadenceBeatTable.Points;
             for (int index = 0; index < beats.Count; index++)
@@ -72,22 +75,46 @@ namespace FrogCamp.UI
         {
             EnsureHeights();
             if (musicSource != null && musicSource.isPlaying)
+            {
                 musicSource.GetSpectrumData(spectrum, 0, FFTWindow.BlackmanHarris);
+                if (musicSource.clip != null && musicSource.clip.channels > 1)
+                    musicSource.GetSpectrumData(
+                        secondarySpectrum, 1, FFTWindow.BlackmanHarris);
+                else
+                    System.Array.Copy(spectrum, secondarySpectrum, spectrum.Length);
+            }
             else
+            {
                 System.Array.Clear(spectrum, 0, spectrum.Length);
+                System.Array.Clear(secondarySpectrum, 0, secondarySpectrum.Length);
+            }
 
             float blend = 1f - Mathf.Exp(-smoothing * Time.unscaledDeltaTime);
             for (int index = 0; index < targets.Length; index++)
             {
-                float normalized = (index + 0.5f) / heights.Length;
-                int sample = Mathf.Clamp(
-                    Mathf.FloorToInt(Mathf.Pow(normalized, 1.8f) *
-                                     (spectrum.Length - 1)),
+                float bandStart = index / (float)targets.Length;
+                float bandEnd = (index + 1f) / targets.Length;
+
+                // Most music energy is below roughly 7 kHz. Distributing those
+                // bins logarithmically keeps the entire strip active instead of
+                // spending its right half on nearly silent high frequencies.
+                const int highestUsefulBin = 80;
+                int firstSample = Mathf.Clamp(Mathf.FloorToInt(
+                    Mathf.Pow(bandStart, 2.2f) * highestUsefulBin),
                     0, spectrum.Length - 1);
-                float energy = Mathf.Sqrt(spectrum[sample]) * sensitivity;
-                float neighbor = sample + 1 < spectrum.Length
-                    ? Mathf.Sqrt(spectrum[sample + 1]) * sensitivity : energy;
-                targets[index] = Mathf.Clamp01((energy + neighbor) * 0.5f);
+                int lastSample = Mathf.Clamp(Mathf.CeilToInt(
+                    Mathf.Pow(bandEnd, 2.2f) * highestUsefulBin),
+                    firstSample + 1, spectrum.Length);
+
+                float energy = 0f;
+                for (int sample = firstSample; sample < lastSample; sample++)
+                    energy += (spectrum[sample] + secondarySpectrum[sample]) * 0.5f;
+                energy = Mathf.Sqrt(energy / (lastSample - firstSample));
+
+                float normalized = (index + 0.5f) / targets.Length;
+                float highFrequencyLift = Mathf.Lerp(1f, 2.6f, normalized);
+                targets[index] = Mathf.Clamp01(
+                    energy * sensitivity * highFrequencyLift);
             }
             for (int index = 0; index < heights.Length; index++)
             {

@@ -64,15 +64,27 @@ namespace FrogCamp.Editor
             if (FrogCamp.Gameplay.FrogAnimationSet.GetFrameCount("whistle") != 7)
                 throw new System.Exception("粉色军官吹哨动画没有按 7 帧播放。");
 
-            if (CadenceBeatTable.Points.Count != 240 ||
+            if (CadenceBeatTable.Points.Count != 48 ||
                 Mathf.Abs(CadenceBeatTable.Points[0].time - 22.927202f) > .001f ||
                 Mathf.Abs(CadenceBeatTable.Points[4].time - 25.819710f) > .001f ||
-                Mathf.Abs(CadenceBeatTable.Points[48].time - 129.585202f) > .001f ||
+                Mathf.Abs(CadenceBeatTable.LoopStartTime - 39.669921f) > .001f ||
+                Mathf.Abs(CadenceBeatTable.LoopEndTime - 106.658f) > .001f ||
+                CadenceBeatTable.LoopStartIndex != 8 ||
                 CadenceBeatTable.Points[0].beat != 1 ||
                 CadenceBeatTable.Points[3].beat != 4 ||
                 CadenceBeatTable.Points[4].beat != 1 ||
-                game.cadenceCommands.Count != 240)
-                throw new System.Exception("项目跑操重复段时间轴读取或生成失败。");
+                game.cadenceCommands.Count != 48)
+                throw new System.Exception("项目跑操循环段时间轴读取失败。");
+
+            for (int index = 0; index < CadenceBeatTable.Points.Count; index++)
+            {
+                bool sequenceStart = index == 0 ||
+                    CadenceBeatTable.Points[index].time -
+                    CadenceBeatTable.Points[index - 1].time > 1.5f;
+                if (sequenceStart &&
+                    !game.cadenceCommands[index].StartsWith("move"))
+                    throw new System.Exception("跑操每轮第一个命令不是方向移动。");
+            }
 
             GameStateData directionGame = GameSimulation.Create(room, 4f);
             GameActorData directionActor = directionGame.players[1];
@@ -83,15 +95,37 @@ namespace FrogCamp.Editor
                 throw new System.Exception("动作播放期间角色朝向没有正确锁定。");
 
             GameStateData cadenceGame = GameSimulation.Create(room, 3f);
-            cadenceGame.cadenceCommands[0] = "moveUp";
+            cadenceGame.cadenceCommands[0] = "armLeft";
+            foreach (GameActorData cadenceNpc in cadenceGame.npcs)
+                cadenceNpc.facing = "right";
             GameSimulation.Tick(cadenceGame,
                 CadenceBeatTable.Points[0].time + .001f, 3.05f);
             if (cadenceGame.nextCadenceBeat != 1 ||
                 cadenceGame.npcs.Exists(item =>
-                    item.action != "moveUp" || item.actionFacing != "up"))
+                    item.action != "armLeft" || item.actionFacing != "right"))
                 throw new System.Exception("跑操第一拍未让全部 NPC 同步执行预生成命令。");
 
-            Debug.Log("原型冒烟测试通过：粉色军官 7 帧吹哨动画与音效、240 个变拍时间点、预生成随机命令、动作朝向锁定、首拍全体 NPC 同步执行均正常。");
+            float firstActionEnd = 3.05f +
+                GameSimulation.ActionDuration("armLeft") + .01f;
+            GameSimulation.Tick(cadenceGame,
+                GameSimulation.ActionDuration("armLeft") + .01f, firstActionEnd);
+            if (cadenceGame.npcs.Exists(item =>
+                    !string.IsNullOrEmpty(item.action) || item.moving ||
+                    item.facing != "right"))
+                throw new System.Exception("连续拍点之间 NPC 触发了额外动作或改变了朝向。");
+
+            cadenceGame.musicTime = CadenceBeatTable.LoopEndTime - .01f;
+            cadenceGame.nextCadenceBeat = CadenceBeatTable.Points.Count;
+            cadenceGame.cadenceCommands[CadenceBeatTable.LoopStartIndex] = "moveLeft";
+            GameSimulation.Tick(cadenceGame, .02f, 3.1f);
+            if (Mathf.Abs(cadenceGame.musicTime -
+                    (CadenceBeatTable.LoopStartTime + .01f)) > .001f ||
+                cadenceGame.nextCadenceBeat != CadenceBeatTable.LoopStartIndex + 1 ||
+                cadenceGame.npcs.Exists(item =>
+                    item.action != "moveLeft" || item.actionFacing != "left"))
+                throw new System.Exception("音乐循环后 NPC 动作没有与循环起点同步。");
+
+            Debug.Log("原型冒烟测试通过：音乐按指定区间循环，NPC 拍点动作与循环起点同步。");
         }
     }
 }

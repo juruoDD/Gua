@@ -19,7 +19,7 @@ namespace FrogCamp.Networking
         private const int DiscoveryPort = 7778;
         private const string DiscoveryMagic = "FROG_CAMP_V1";
         private const int MaxPlayers = 4;
-        private const int MinPlayers = 2;
+        private const int MinPlayers = 1;
 
         private static LanRoomService instance;
         private readonly ConcurrentQueue<Action> mainThreadActions = new ConcurrentQueue<Action>();
@@ -227,7 +227,7 @@ namespace FrogCamp.Networking
             }
             if (CurrentRoom.players.Count < MinPlayers)
             {
-                reason = "至少需要 2 名玩家";
+                reason = "至少需要 1 名玩家";
                 return false;
             }
             if (CurrentRoom.players.Any(player => string.IsNullOrEmpty(player.role)))

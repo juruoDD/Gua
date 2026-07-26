@@ -49,26 +49,32 @@ namespace FrogCamp.UI
             float targetX = area.xMin + area.width * 0.085f;
             float spawnX = area.xMax - 48f;
             float laneY = 0f;
-            int first = 0;
-            while (first < beats.Count &&
-                   beats[first].time < game.musicTime - passWindow)
-                first++;
+            int commandIndex = Mathf.Clamp(game.nextCadenceBeat, 0, beats.Count);
+            float cycleOffset = 0f;
+            float loopLength = CadenceBeatTable.LoopEndTime -
+                               CadenceBeatTable.LoopStartTime;
 
             bool targetPulse = false;
             for (int slot = 0; slot < noteSlots.Length; slot++)
             {
-                int commandIndex = first + slot;
-                if (commandIndex >= beats.Count ||
+                if (commandIndex >= beats.Count)
+                {
+                    commandIndex = CadenceBeatTable.LoopStartIndex;
+                    cycleOffset += loopLength;
+                }
+                if (commandIndex < 0 || commandIndex >= beats.Count ||
                     commandIndex >= game.cadenceCommands.Count)
                 {
                     noteSlots[slot].gameObject.SetActive(false);
                     continue;
                 }
 
-                float remaining = beats[commandIndex].time - game.musicTime;
+                float remaining = beats[commandIndex].time + cycleOffset -
+                                  game.musicTime;
                 if (remaining > leadTime || remaining < -passWindow)
                 {
                     noteSlots[slot].gameObject.SetActive(false);
+                    commandIndex++;
                     continue;
                 }
 
@@ -91,6 +97,7 @@ namespace FrogCamp.UI
                     CampUiFactory.Hex("#F0A35B"), hit);
                 noteLabels[slot].color = Color.Lerp(
                     CampUiFactory.White, Color.white, hit);
+                commandIndex++;
             }
 
             if (targetMarker != null)
