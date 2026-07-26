@@ -28,7 +28,7 @@ namespace FrogCamp.Networking
         private static readonly string[] NpcActions =
         {
             "jump", "armLeft", "armRight", "legLeft",
-            "legRight", "croak", "tongue"
+            "legRight", "croak", "tongue", "salute"
         };
 
         public static GameStateData Create(RoomStateData room, float now)
@@ -67,7 +67,7 @@ namespace FrogCamp.Networking
                 ? action == "jump" || action == "croak" || action == "tongue" || action == "whistle"
                 : action == "jump" || action == "armLeft" || action == "armRight" ||
                   action == "legLeft" || action == "legRight" ||
-                  action == "croak" || action == "tongue";
+                  action == "croak" || action == "tongue" || action == "salute";
             if (allowed) BeginAction(actor, action, now);
         }
 
@@ -136,6 +136,7 @@ namespace FrogCamp.Networking
                 case "croak": return 0.82f;
                 case "tongue": return 0.92f;
                 case "whistle": return 1f;
+                case "salute": return 1f;
                 default: return 0f;
             }
         }

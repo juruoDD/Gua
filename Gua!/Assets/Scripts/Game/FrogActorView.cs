@@ -113,9 +113,8 @@ namespace FrogCamp.Gameplay
                     bool tallFrame = useHopFrames || useActionFrames;
                     frameRect.sizeDelta = tallFrame
                         ? new Vector2(82f, 164f) : new Vector2(82f, 82f);
-                    frameRect.anchoredPosition = useHopFrames
-                        ? new Vector2(0f, 38f)
-                        : (useActionFrames ? new Vector2(0f, 21f) : Vector2.zero);
+                    frameRect.anchoredPosition =
+                        FrogAnimationSet.GetFrameOffset(state);
                 }
             }
             graphic.SetPose(data.role, data.action, progress, data.moving,

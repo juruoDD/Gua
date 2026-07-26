@@ -48,10 +48,14 @@ namespace FrogCamp.UI
             greenAnimations.SetTextures(
                 LoadFrogTexture("待机"), LoadFrogTexture("小跳"), LoadFrogTexture("大跳"),
                 LoadFrogTexture("伸左手"), LoadFrogTexture("伸右手"),
-                LoadFrogTexture("伸左腿"), LoadFrogTexture("伸右腿"));
+                LoadFrogTexture("伸左腿"), LoadFrogTexture("伸右腿"),
+                LoadFrogTexture("张嘴"), LoadFrogTexture("吐舌"), null,
+                LoadFrogTexture("敬礼"));
             pinkAnimations.SetTextures(
                 LoadFrogTexture("粉色待机"), LoadFrogTexture("粉色小跳"),
-                LoadFrogTexture("粉色大跳"), null, null, null, null);
+                LoadFrogTexture("粉色大跳"), null, null, null, null,
+                LoadFrogTexture("粉色张嘴"), LoadFrogTexture("粉色吐舌"),
+                null, null);
 #endif
             CampUiFactory.EnsureEventSystem();
             Canvas canvas = CampUiFactory.CreateCanvas(transform);
@@ -89,7 +93,7 @@ namespace FrogCamp.UI
                 new Vector2(0.69f, 0.97f), Vector2.zero, Vector2.zero,
                 TextAnchor.MiddleCenter, true);
             CampUiFactory.Text(map, "Controls",
-                "WASD / 方向键 移动   空格 大跳   H 呱叫   J 吐舌   K 吹哨   1-4 伸展",
+                "WASD / 方向键 移动   空格 大跳   H 呱叫   J 吐舌   K 敬礼/吹哨   1-4 伸展",
                 15, CampUiFactory.Leaf, new Vector2(0.18f, 0.01f),
                 new Vector2(0.82f, 0.055f), Vector2.zero, Vector2.zero,
                 TextAnchor.MiddleCenter, true);
@@ -115,7 +119,12 @@ namespace FrogCamp.UI
             if (Input.GetKeyDown(KeyCode.Alpha4)) service.TriggerGameAction("legRight");
             if (Input.GetKeyDown(KeyCode.H)) service.TriggerGameAction("croak");
             if (Input.GetKeyDown(KeyCode.J)) service.TriggerGameAction("tongue");
-            if (Input.GetKeyDown(KeyCode.K)) service.TriggerGameAction("whistle");
+            if (Input.GetKeyDown(KeyCode.K))
+            {
+                RoomPlayerData localPlayer = service.GetLocalPlayer();
+                service.TriggerGameAction(localPlayer != null &&
+                    localPlayer.role == "officer" ? "whistle" : "salute");
+            }
         }
 
         private void RefreshActors()
