@@ -14,14 +14,12 @@ namespace FrogCamp.Editor
         private const string StartPath = "Assets/Scenes/开始界面.unity";
         private const string LobbyPath = "Assets/Scenes/联机界面.unity";
         private const string GamePath = "Assets/Scenes/游戏界面.unity";
-        private const string SessionKey = "FrogCamp.EditableUiBakeV9";
 
         static CampSceneBaker()
         {
+            // 只维持 Play Mode 的启动场景，不再自动重建任何 UI。
+            // Scene 中的手动编辑必须始终优先于代码模板。
             EditorApplication.delayCall += ConfigurePlayModeStartScene;
-            if (AllScenesAreBaked() || SessionState.GetBool(SessionKey, false)) return;
-            SessionState.SetBool(SessionKey, true);
-            EditorApplication.delayCall += BakeScenes;
         }
 
         [MenuItem("Tools/Frog Camp/Rebuild Editable UI Scenes")]

@@ -83,7 +83,8 @@ namespace FrogCamp.Gameplay
             bool canUseFrames = frameImage != null && animations != null && !data.stunned;
             bool useActionFrames = canUseFrames && actionTexture != null;
             bool useHopFrames = canUseFrames && animations.Hop != null &&
-                                string.IsNullOrEmpty(data.action) && data.moving;
+                                ((string.IsNullOrEmpty(data.action) && data.moving) ||
+                                 GameSimulation.IsCadenceMoveAction(data.action));
             bool useIdleFrames = canUseFrames && animations.Idle != null &&
                                  string.IsNullOrEmpty(data.action) && !data.moving;
             float hop = data.moving && !useHopFrames

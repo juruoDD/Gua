@@ -63,6 +63,7 @@ namespace FrogCamp.Gameplay
             {
                 case "jump":
                 case "salute": return 8;
+                case "whistle": return 7;
                 case "armLeft":
                 case "armRight": return 7;
                 case "legLeft":

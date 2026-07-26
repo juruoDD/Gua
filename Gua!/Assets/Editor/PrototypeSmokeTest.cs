@@ -9,8 +9,8 @@ namespace FrogCamp.Editor
     {
         static PrototypeSmokeTest()
         {
-            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV7", false)) return;
-            SessionState.SetBool("FrogCamp.PrototypeSmokeV7", true);
+            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV9", false)) return;
+            SessionState.SetBool("FrogCamp.PrototypeSmokeV9", true);
             EditorApplication.delayCall += Run;
         }
 
@@ -32,7 +32,7 @@ namespace FrogCamp.Editor
             GameSimulation.Tick(game, .05f, 2.46f);
             GameSimulation.Tick(game, .05f, 2.51f);
             if (game.npcs.Count != 19 || !officer.stunned ||
-                officer.soundEvent != "tongueHit" || officer.soundEventId != 1)
+                officer.soundEvent != "tongueWrong" || officer.soundEventId != 2)
                 throw new System.Exception("军官吐舌命中 AI 的消灭或眩晕逻辑失败。");
 
             GameStateData soundGame = GameSimulation.Create(room, 8f);
@@ -54,17 +54,24 @@ namespace FrogCamp.Editor
             GameSimulation.StartAction(soundGame, missingOfficer.id, "tongue", 9f);
             GameSimulation.Tick(soundGame, .05f,
                 9f + GameSimulation.ActionDuration("tongue") + .01f);
-            if (missingOfficer.soundEvent != "tongueMiss" ||
+            if (missingOfficer.soundEvent != "tongueCast" ||
                 missingOfficer.soundEventId != 1)
-                throw new System.Exception("军官吐舌落空声音事件没有同步生成。");
+                throw new System.Exception("吐舌动作声音事件没有同步生成。");
+            GameSimulation.StartAction(soundGame, missingOfficer.id, "whistle", 11f);
+            if (missingOfficer.soundEvent != "whistle" ||
+                missingOfficer.soundEventId != 2)
+                throw new System.Exception("军官吹哨声音事件没有同步生成。");
+            if (FrogCamp.Gameplay.FrogAnimationSet.GetFrameCount("whistle") != 7)
+                throw new System.Exception("粉色军官吹哨动画没有按 7 帧播放。");
 
-            if (CadenceBeatTable.Points.Count != 100 ||
+            if (CadenceBeatTable.Points.Count != 240 ||
                 Mathf.Abs(CadenceBeatTable.Points[0].time - 22.927202f) > .001f ||
-                Mathf.Abs(CadenceBeatTable.Points[4].time - 39.669921f) > .001f ||
-                Mathf.Abs(CadenceBeatTable.Points[20].time - 129.585202f) > .001f ||
+                Mathf.Abs(CadenceBeatTable.Points[4].time - 25.819710f) > .001f ||
+                Mathf.Abs(CadenceBeatTable.Points[48].time - 129.585202f) > .001f ||
                 CadenceBeatTable.Points[0].beat != 1 ||
                 CadenceBeatTable.Points[3].beat != 4 ||
-                CadenceBeatTable.Points[4].beat != 1)
+                CadenceBeatTable.Points[4].beat != 1 ||
+                game.cadenceCommands.Count != 240)
                 throw new System.Exception("项目跑操重复段时间轴读取或生成失败。");
 
             GameStateData directionGame = GameSimulation.Create(room, 4f);
@@ -76,13 +83,15 @@ namespace FrogCamp.Editor
                 throw new System.Exception("动作播放期间角色朝向没有正确锁定。");
 
             GameStateData cadenceGame = GameSimulation.Create(room, 3f);
+            cadenceGame.cadenceCommands[0] = "moveUp";
             GameSimulation.Tick(cadenceGame,
                 CadenceBeatTable.Points[0].time + .001f, 3.05f);
             if (cadenceGame.nextCadenceBeat != 1 ||
-                cadenceGame.npcs.Exists(item => item.action != "armRight"))
-                throw new System.Exception("跑操第一拍未让全部 NPC 同步执行数字键 1 动作。");
+                cadenceGame.npcs.Exists(item =>
+                    item.action != "moveUp" || item.actionFacing != "up"))
+                throw new System.Exception("跑操第一拍未让全部 NPC 同步执行预生成命令。");
 
-            Debug.Log("原型冒烟测试通过：联机角色、呱叫与吐舌命中/落空声音事件、100 个重复段拍点、动作朝向锁定、首拍全体 NPC 动作均正常。");
+            Debug.Log("原型冒烟测试通过：粉色军官 7 帧吹哨动画与音效、240 个变拍时间点、预生成随机命令、动作朝向锁定、首拍全体 NPC 同步执行均正常。");
         }
     }
 }

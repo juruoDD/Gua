@@ -32,9 +32,10 @@ namespace FrogCamp.Networking
             "jump", "armLeft", "armRight", "legLeft",
             "legRight", "croak", "tongue", "salute"
         };
-        private static readonly string[] CadenceActions =
+        private static readonly string[] CadenceCommands =
         {
-            "armRight", "armLeft", "legLeft", "legRight"
+            "armLeft", "armRight", "legLeft", "legRight",
+            "moveUp", "moveDown", "moveLeft", "moveRight"
         };
 
         public static GameStateData Create(RoomStateData room, float now)
@@ -52,6 +53,9 @@ namespace FrogCamp.Networking
                 PlaceActor(npc, game.players.Concat(game.npcs).ToList());
                 game.npcs.Add(npc);
             }
+            for (int index = 0; index < CadenceBeatTable.Points.Count; index++)
+                game.cadenceCommands.Add(
+                    CadenceCommands[Random.Range(0, CadenceCommands.Length)]);
             return game;
         }
 
@@ -118,6 +122,13 @@ namespace FrogCamp.Networking
                     MoveDuringJump(npc, deltaTime, actors);
                     continue;
                 }
+                if (IsCadenceMoveAction(npc.action))
+                {
+                    Vector2 direction = CadenceMoveDirection(npc.action);
+                    npc.moving = Move(npc, direction.x * MoveSpeed * deltaTime,
+                        direction.y * MoveSpeed * deltaTime, actors);
+                    continue;
+                }
                 if (!string.IsNullOrEmpty(npc.action))
                 {
                     npc.moving = false;
@@ -152,6 +163,11 @@ namespace FrogCamp.Networking
                 case "tongue": return 0.92f / AnimationSpeedMultiplier;
                 case "whistle": return 1f / AnimationSpeedMultiplier;
                 case "salute": return 1f / AnimationSpeedMultiplier;
+                case "moveUp":
+                case "moveDown":
+                case "moveLeft":
+                case "moveRight":
+                    return 0.56f / AnimationSpeedMultiplier;
                 default: return 0f;
             }
         }
@@ -205,6 +221,8 @@ namespace FrogCamp.Networking
         {
             actor.inputX = actor.inputY = 0f;
             actor.moving = false;
+            if (IsCadenceMoveAction(action))
+                actor.facing = FacingFrom(CadenceMoveDirection(action));
             actor.action = action;
             actor.actionFacing = actor.facing;
             actor.actionId++;
@@ -212,6 +230,8 @@ namespace FrogCamp.Networking
             actor.actionUntil = now + ActionDuration(action);
             actor.actionResolved = false;
             if (action == "croak") EmitSound(actor, "frog");
+            if (action == "tongue") EmitSound(actor, "tongueCast");
+            if (action == "whistle") EmitSound(actor, "whistle");
             if (action == "jump")
             {
                 Vector2 direction = FacingVector(actor.actionFacing);
@@ -227,8 +247,9 @@ namespace FrogCamp.Networking
             while (game.nextCadenceBeat < beats.Count &&
                    beats[game.nextCadenceBeat].time <= game.musicTime)
             {
-                CadenceBeatPoint point = beats[game.nextCadenceBeat];
-                string action = CadenceActions[point.beat - 1];
+                string action = game.nextCadenceBeat < game.cadenceCommands.Count
+                    ? game.cadenceCommands[game.nextCadenceBeat]
+                    : CadenceCommands[game.nextCadenceBeat % CadenceCommands.Length];
                 foreach (GameActorData npc in game.npcs)
                 {
                     if (npc.eliminated || !npc.online) continue;
@@ -242,9 +263,6 @@ namespace FrogCamp.Networking
         private static void FinishAction(GameActorData actor, float now)
         {
             if (string.IsNullOrEmpty(actor.action) || now < actor.actionUntil) return;
-            if (actor.role == "officer" && actor.action == "tongue" &&
-                !actor.actionResolved)
-                EmitSound(actor, "tongueMiss");
             actor.action = null;
             actor.actionFacing = null;
             actor.jumpX = actor.jumpY = 0f;
@@ -280,15 +298,16 @@ namespace FrogCamp.Networking
             }
             if (nearest == null) return;
             officer.actionResolved = true;
-            EmitSound(officer, "tongueHit");
             if (nearest.npc)
             {
+                EmitSound(officer, "tongueWrong");
                 game.npcs.Remove(nearest);
                 officer.stunnedUntil = now + 5f;
                 officer.inputX = officer.inputY = 0f;
             }
             else
             {
+                EmitSound(officer, "tongueCorrect");
                 nearest.eliminated = true;
                 nearest.inputX = nearest.inputY = 0f;
                 nearest.action = null;
@@ -301,6 +320,24 @@ namespace FrogCamp.Networking
         {
             actor.soundEvent = soundEvent;
             actor.soundEventId++;
+        }
+
+        public static bool IsCadenceMoveAction(string action)
+        {
+            return action == "moveUp" || action == "moveDown" ||
+                   action == "moveLeft" || action == "moveRight";
+        }
+
+        private static Vector2 CadenceMoveDirection(string action)
+        {
+            switch (action)
+            {
+                case "moveUp": return Vector2.down;
+                case "moveDown": return Vector2.up;
+                case "moveLeft": return Vector2.left;
+                case "moveRight": return Vector2.right;
+                default: return Vector2.zero;
+            }
         }
 
         private static bool Move(GameActorData actor, float dx, float dy, List<GameActorData> actors)

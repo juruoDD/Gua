@@ -47,6 +47,7 @@ namespace FrogCamp.Networking
         public int announcementId;
         public float musicTime;
         public int nextCadenceBeat;
+        public List<string> cadenceCommands = new List<string>();
     }
 
     [Serializable]
