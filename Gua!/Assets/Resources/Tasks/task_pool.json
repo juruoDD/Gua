@@ -1,117 +1,90 @@
 {
   "panelSize": 4,
+  "runTaskCount": 10,
   "tasks": [
     {
       "id": "slack_in_reeds",
       "title": "在芦苇丛中偷懒 5s",
-      "description": "进入地图左上角的芦苇判定区，保持不动 5 秒。",
-      "guaranteed": true,
+      "description": "芦苇丛附近静止 5 秒",
+      "guaranteed": false,
       "prerequisites": []
     },
     {
       "id": "steal_nest_key",
       "title": "从鸟窝中偷钥匙",
-      "description": "在鸟窝中静止不动 5s",
-      "guaranteed": true,
+      "description": "鸟窝附近静止 5 秒",
+      "guaranteed": false,
       "prerequisites": []
     },
     {
       "id": "open_officer_cabinet",
       "title": "打开军官私房柜子",
-      "description": "拿到钥匙后，靠近军官私房柜按 F",
-      "guaranteed": true,
+      "description": "靠近私房柜吐舌头",
+      "guaranteed": false,
       "prerequisites": ["steal_nest_key"]
     },
     {
       "id": "attack_officer",
       "title": "袭击军官蛙",
-      "description": "对着军官蛙吐舌头",
+      "description": "对军官蛙吐舌头",
       "guaranteed": true,
       "prerequisites": ["open_officer_cabinet"]
     },
     {
-      "id": "make_bed",
-      "title": "整理床铺",
-      "description": "把营帐里的床铺整理整齐。",
+      "id": "eat_small_insects",
+      "title": "偷吃小飞虫",
+      "description": "小飞虫附近吐舌头",
+      "guaranteed": false,
+      "prerequisites": []
+    },
+    {
+      "id": "idle_officer_home",
+      "title": "在军官家偷懒",
+      "description": "军官家附近静止 5 秒",
+      "guaranteed": false,
+      "prerequisites": []
+    },
+    {
+      "id": "idle_bird_nest",
+      "title": "在鸟窝中偷懒",
+      "description": "鸟窝附近静止 5 秒",
+      "guaranteed": false,
+      "prerequisites": []
+    },
+    {
+      "id": "croak_five_times",
+      "title": "连续呱呱叫 5 声",
+      "description": "连续呱叫 5 声",
+      "guaranteed": false,
+      "prerequisites": []
+    },
+    {
+      "id": "lick_disruptor_companion",
+      "title": "找到一名捣乱蛙同伴并舔他的屁股",
+      "description": "从捣乱蛙同伴背后吐舌头",
       "guaranteed": true,
       "prerequisites": []
     },
     {
-      "id": "identify_painting",
-      "title": "鉴别画作",
-      "description": "辨认营地收藏的画作。",
-      "guaranteed": true,
-      "prerequisites": []
-    },
-    {
-      "id": "catch_fireflies",
-      "title": "捉萤火虫",
-      "description": "在池塘边收集发光的萤火虫。",
+      "id": "roll_call_late",
+      "title": "点名迟到",
+      "description": "集合结束时仍留在远处",
       "guaranteed": false,
       "prerequisites": []
     },
     {
-      "id": "find_cloth",
-      "title": "寻找抹布",
-      "description": "找到清扫仓库需要的抹布。",
+      "id": "lick_ten_unique_frogs",
+      "title": "舔到 10 只不同的蛙",
+      "description": "单人舔满 10 只不同蛙",
       "guaranteed": false,
       "prerequisites": []
     },
     {
-      "id": "clean_warehouse",
-      "title": "清扫仓库",
-      "description": "用找到的抹布清扫仓库。",
-      "guaranteed": true,
-      "prerequisites": ["find_cloth"]
-    },
-    {
-      "id": "collect_reeds",
-      "title": "收集芦苇",
-      "description": "在池塘周围收集可用的芦苇。",
+      "id": "salute_five_times",
+      "title": "连续敬礼 5 次",
+      "description": "连续敬礼 5 次",
       "guaranteed": false,
       "prerequisites": []
-    },
-    {
-      "id": "repair_fence",
-      "title": "修补围栏",
-      "description": "修好营地外围松动的围栏。",
-      "guaranteed": false,
-      "prerequisites": ["collect_reeds"]
-    },
-    {
-      "id": "count_supplies",
-      "title": "清点物资",
-      "description": "核对仓库中的物资数量。",
-      "guaranteed": false,
-      "prerequisites": ["clean_warehouse"]
-    },
-    {
-      "id": "fill_water",
-      "title": "补充饮水",
-      "description": "为营帐补充今天的饮水。",
-      "guaranteed": false,
-      "prerequisites": []
-    },
-    {
-      "id": "light_lantern",
-      "title": "点亮营灯",
-      "description": "在天黑前点亮营地灯火。",
-      "guaranteed": false,
-      "prerequisites": ["catch_fireflies"]
-    },
-    {
-      "id": "deliver_report",
-      "title": "递交值勤报告",
-      "description": "把今日值勤记录交给军官。",
-      "guaranteed": false,
-      "prerequisites": ["count_supplies"]
-    },
-    {
-      "id": "inspect_camp",
-      "title": "巡查营地",
-      "description": "完成最后一轮营地巡查。",
-      "guaranteed": false,
-      "prerequisites": ["repair_fence", "light_lantern"]
     }
   ]
 }

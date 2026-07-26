@@ -17,6 +17,7 @@ namespace FrogCamp.Tasks
     public sealed class TaskCatalog
     {
         public int panelSize = 4;
+        public int runTaskCount = 10;
         public List<TaskDefinition> tasks = new List<TaskDefinition>();
     }
 }

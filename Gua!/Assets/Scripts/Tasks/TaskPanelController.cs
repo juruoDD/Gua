@@ -25,7 +25,20 @@ namespace FrogCamp.Tasks
         private const string BirdNestTaskId = "steal_nest_key";
         private const string CabinetTaskId = "open_officer_cabinet";
         private const string AttackOfficerTaskId = "attack_officer";
+        private const string EatInsectsTaskId = "eat_small_insects";
+        private const string IdleOfficerHomeTaskId = "idle_officer_home";
+        private const string IdleBirdNestTaskId = "idle_bird_nest";
+        private const string CroakFiveTimesTaskId = "croak_five_times";
+        private const string LickCompanionTaskId =
+            "lick_disruptor_companion";
+        private const string RollCallLateTaskId = "roll_call_late";
+        private const string LickTenUniqueFrogsTaskId =
+            "lick_ten_unique_frogs";
+        private const string SaluteFiveTimesTaskId =
+            "salute_five_times";
         private const float BirdNestTaskDuration = 5f;
+        private const float IdleTaskDuration = 5f;
+        private const float RollCallAssemblyRadius = 135f;
         private const float TaskAreaNearbyPadding = 24f;
         private static readonly Rect ReedTaskWorldArea =
             new Rect(110f, 20f, 220f, 165f);
@@ -33,6 +46,8 @@ namespace FrogCamp.Tasks
             new Rect(660f, 335f, 185f, 145f);
         private static readonly Rect CabinetTaskWorldArea =
             new Rect(700f, 55f, 145f, 150f);
+        private static readonly Rect InsectTaskWorldArea =
+            new Rect(65f, 330f, 235f, 150f);
         private TaskPool taskPool;
         [SerializeField] private Text progressText;
         [SerializeField] private Image progressFill;
@@ -45,7 +60,18 @@ namespace FrogCamp.Tasks
         [SerializeField] private Text cabinetTaskAreaText;
         private float reedIdleTime;
         private float birdNestIdleTime;
+        private float birdNestSlackIdleTime;
+        private float officerHomeIdleTime;
+        private int consecutiveCroakCount;
+        private int saluteCount;
+        private string lastSpecialMusicPhase;
+        private bool uniqueLickTaskWasActive;
         private int lastLocalActionId = -1;
+        private readonly Dictionary<string, int> lastTongueActionByPlayer =
+            new Dictionary<string, int>();
+        private readonly Dictionary<string, HashSet<string>>
+            uniqueLickedTargetsByPlayer =
+                new Dictionary<string, HashSet<string>>();
         private readonly List<GameObject> taskRows = new List<GameObject>();
 
         public int ProgressPercent => taskPool == null ? 0 : taskPool.ProgressPercent;
@@ -75,7 +101,9 @@ namespace FrogCamp.Tasks
             UpdateReedTask();
             UpdateBirdNestTask();
             UpdateCabinetTask();
-            UpdateAttackOfficerTask();
+            UpdateRollCallLateTask();
+            UpdateUniqueLickTask();
+            UpdateActionTasks();
         }
 
         private void OnDestroy()
@@ -137,36 +165,35 @@ namespace FrogCamp.Tasks
                 {
                     id = BirdNestTaskId,
                     title = "从鸟窝中偷钥匙",
-                    description = "在鸟窝中静止不动 5s",
+                    description = "鸟窝附近静止 5 秒",
                     guaranteed = true
                 },
                 new TaskDefinition
                 {
                     id = CabinetTaskId,
                     title = "打开军官私房柜子",
-                    description = "拿到钥匙后，靠近柜子按 F",
+                    description = "靠近私房柜吐舌头",
                     guaranteed = true
                 },
                 new TaskDefinition
                 {
                     id = AttackOfficerTaskId,
                     title = "袭击军官蛙",
-                    description = "对着军官蛙吐舌头",
+                    description = "对军官蛙吐舌头",
                     guaranteed = true
                 },
                 new TaskDefinition
                 {
                     id = ReedTaskId,
                     title = "在芦苇丛中偷懒 5s",
-                    description = "在左上角芦苇丛保持不动 5s",
+                    description = "芦苇丛附近静止 5 秒",
                     guaranteed = true
                 },
                 new TaskDefinition
                 {
-                    id = "make_bed",
-                    title = "整理床铺",
-                    description = "把营帐里的床铺整理整齐",
-                    guaranteed = true
+                    id = EatInsectsTaskId,
+                    title = "偷吃小飞虫",
+                    description = "小飞虫附近吐舌头"
                 }
             };
             const float rowHeight = 0.188f;
@@ -178,9 +205,8 @@ namespace FrogCamp.Tasks
         {
             return progressText != null && progressFill != null &&
                    taskList != null && reedTaskArea != null &&
-                   reedTaskAreaText != null &&
-                   birdNestTaskArea != null && birdNestTaskAreaText != null &&
-                   cabinetTaskArea != null && cabinetTaskAreaText != null;
+                   birdNestTaskArea != null &&
+                   cabinetTaskArea != null;
         }
 
         private void BuildRuntimeFallbackLayout()
@@ -432,7 +458,7 @@ namespace FrogCamp.Tasks
         {
             BuildTaskArea(map, "CabinetTaskArea", CabinetTaskWorldArea,
                 new Color(0.56f, 0.70f, 0.88f, 0.15f),
-                "军官私房柜  ·  按 F 打开",
+                "军官私房柜  ·  吐舌头打开",
                 out cabinetTaskArea, out cabinetTaskAreaText);
         }
 
@@ -444,19 +470,16 @@ namespace FrogCamp.Tasks
             float maxX = worldArea.xMax / GameSimulation.WorldWidth;
             float minY = 1f - worldArea.yMax / GameSimulation.WorldHeight;
             float maxY = 1f - worldArea.yMin / GameSimulation.WorldHeight;
-            RectTransform area = CampUiFactory.Panel(map, objectName,
+            GameObject areaObjectInstance =
+                new GameObject(objectName, typeof(RectTransform));
+            RectTransform area =
+                areaObjectInstance.GetComponent<RectTransform>();
+            area.SetParent(map, false);
+            CampUiFactory.SetRect(area,
                 new Vector2(minX, minY), new Vector2(maxX, maxY),
-                Vector2.zero, Vector2.zero, color, true);
+                Vector2.zero, Vector2.zero);
             areaObject = area.gameObject;
-            area.GetComponent<Image>().raycastTarget = false;
-
-            Transform actorLayer = map.Find("ActorLayer");
-            if (actorLayer != null) area.SetSiblingIndex(actorLayer.GetSiblingIndex());
-
-            areaText = CampUiFactory.Text(area, "AreaLabel", label, 15,
-                new Color(0.91f, 0.98f, 0.82f, 1f),
-                new Vector2(0.04f, 0.04f), new Vector2(0.96f, 0.25f),
-                Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter, true);
+            areaText = null;
         }
 
         private void UpdateReedTask()
@@ -485,13 +508,15 @@ namespace FrogCamp.Tasks
             else reedIdleTime = 0f;
 
             float shownTime = Mathf.Min(ReedTaskDuration, reedIdleTime);
-            reedTaskAreaText.text = !isSoldier
-                ? "仅士兵可完成此任务"
-                : !inside
-                    ? "偷懒判定区  ·  进入芦苇丛"
-                    : !idling
-                        ? "请停下并保持不动"
-                        : "正在偷懒  " + shownTime.ToString("0.0") + " / 5.0s";
+            if (reedTaskAreaText != null)
+                reedTaskAreaText.text = !isSoldier
+                    ? "仅士兵可完成此任务"
+                    : !inside
+                        ? "偷懒判定区  ·  进入芦苇丛"
+                        : !idling
+                            ? "请停下并保持不动"
+                            : "正在偷懒  " + shownTime.ToString("0.0") +
+                              " / 5.0s";
 
             if (reedIdleTime >= ReedTaskDuration)
             {
@@ -503,11 +528,15 @@ namespace FrogCamp.Tasks
         private void UpdateBirdNestTask()
         {
             if (taskPool == null || birdNestTaskArea == null) return;
-            bool taskActive = taskPool.ActiveTasks.Any(task => task.id == BirdNestTaskId);
-            birdNestTaskArea.SetActive(taskActive);
-            if (!taskActive)
+            bool keyTaskActive =
+                taskPool.ActiveTasks.Any(task => task.id == BirdNestTaskId);
+            bool slackTaskActive =
+                taskPool.ActiveTasks.Any(task => task.id == IdleBirdNestTaskId);
+            birdNestTaskArea.SetActive(keyTaskActive || slackTaskActive);
+            if (!keyTaskActive && !slackTaskActive)
             {
                 birdNestIdleTime = 0f;
+                birdNestSlackIdleTime = 0f;
                 return;
             }
 
@@ -516,64 +545,268 @@ namespace FrogCamp.Tasks
             bool inside = isSoldier &&
                           IsInsideTaskArea(actor, birdNestTaskArea,
                               BirdNestTaskWorldArea);
-            bool idling = inside && !actor.moving &&
-                           Mathf.Abs(actor.inputX) < 0.01f &&
-                           Mathf.Abs(actor.inputY) < 0.01f &&
-                           string.IsNullOrEmpty(actor.action);
-            birdNestIdleTime = idling
+            bool idling = IsIdling(actor, inside);
+            birdNestIdleTime = keyTaskActive && idling
                 ? birdNestIdleTime + Time.unscaledDeltaTime : 0f;
-            float shownTime = Mathf.Min(BirdNestTaskDuration, birdNestIdleTime);
-            birdNestTaskAreaText.text = !isSoldier
-                ? "仅士兵可偷取钥匙"
-                : !inside
-                    ? "进入鸟窝寻找钥匙"
-                    : !idling
-                        ? "请停下并保持不动"
-                        : "正在偷钥匙  " + shownTime.ToString("0.0") + " / 5.0s";
-            if (birdNestIdleTime >= BirdNestTaskDuration)
+            birdNestSlackIdleTime = slackTaskActive && idling
+                ? birdNestSlackIdleTime + Time.unscaledDeltaTime : 0f;
+            float shownTime = Mathf.Min(IdleTaskDuration,
+                keyTaskActive ? birdNestIdleTime : birdNestSlackIdleTime);
+            if (birdNestTaskAreaText != null)
+                birdNestTaskAreaText.text = !isSoldier
+                    ? "仅士兵可完成此任务"
+                    : !inside
+                        ? "进入鸟窝附近"
+                        : !idling
+                            ? "请停下并保持不动"
+                            : (keyTaskActive
+                                ? "正在偷钥匙  "
+                                : "正在偷懒  ") +
+                              shownTime.ToString("0.0") + " / 5.0s";
+            if (keyTaskActive &&
+                birdNestIdleTime >= BirdNestTaskDuration)
             {
                 birdNestIdleTime = 0f;
                 CompleteTask(BirdNestTaskId);
+            }
+            if (slackTaskActive &&
+                birdNestSlackIdleTime >= IdleTaskDuration)
+            {
+                birdNestSlackIdleTime = 0f;
+                CompleteTask(IdleBirdNestTaskId);
             }
         }
 
         private void UpdateCabinetTask()
         {
             if (taskPool == null || cabinetTaskArea == null) return;
-            bool taskActive = taskPool.ActiveTasks.Any(task => task.id == CabinetTaskId);
-            cabinetTaskArea.SetActive(taskActive);
-            if (!taskActive) return;
+            bool cabinetTaskActive =
+                taskPool.ActiveTasks.Any(task => task.id == CabinetTaskId);
+            bool slackTaskActive =
+                taskPool.ActiveTasks.Any(
+                    task => task.id == IdleOfficerHomeTaskId);
+            cabinetTaskArea.SetActive(cabinetTaskActive || slackTaskActive);
+            if (!cabinetTaskActive && !slackTaskActive)
+            {
+                officerHomeIdleTime = 0f;
+                return;
+            }
 
             GameActorData actor = GetLocalActor();
-            bool inside = actor != null && actor.role != "officer" &&
+            bool isSoldier = actor != null && actor.role != "officer";
+            bool inside = isSoldier &&
                           IsInsideTaskArea(actor, cabinetTaskArea,
                               CabinetTaskWorldArea);
-            cabinetTaskAreaText.text = inside
-                ? "按 F 打开军官私房柜"
-                : "携带钥匙进入柜子判定区";
-            if (inside && Input.GetKeyDown(KeyCode.F))
-                CompleteTask(CabinetTaskId);
+            bool idling = IsIdling(actor, inside);
+            officerHomeIdleTime = slackTaskActive && idling
+                ? officerHomeIdleTime + Time.unscaledDeltaTime : 0f;
+
+            if (cabinetTaskAreaText != null)
+            {
+                if (!isSoldier)
+                    cabinetTaskAreaText.text = "仅士兵可完成此任务";
+                else if (!inside)
+                    cabinetTaskAreaText.text = "进入军官家附近";
+                else if (cabinetTaskActive)
+                    cabinetTaskAreaText.text = "对军官私房柜吐舌头";
+                else if (!idling)
+                    cabinetTaskAreaText.text = "请停下并保持不动";
+                else
+                    cabinetTaskAreaText.text = "正在偷懒  " +
+                        Mathf.Min(IdleTaskDuration, officerHomeIdleTime)
+                            .ToString("0.0") + " / 5.0s";
+            }
+
+            if (slackTaskActive &&
+                officerHomeIdleTime >= IdleTaskDuration)
+            {
+                officerHomeIdleTime = 0f;
+                CompleteTask(IdleOfficerHomeTaskId);
+            }
         }
 
-        private void UpdateAttackOfficerTask()
+        private void UpdateRollCallLateTask()
+        {
+            RoomStateData room = LanRoomService.Instance.CurrentRoom;
+            GameStateData game = room?.game;
+            string phase = game?.specialMusicPhase;
+            bool rollCallJustEnded =
+                lastSpecialMusicPhase == GameSimulation.DancePhaseBell &&
+                phase == GameSimulation.DancePhaseMusic;
+            lastSpecialMusicPhase = phase;
+            if (!rollCallJustEnded || taskPool == null ||
+                !taskPool.ActiveTasks.Any(
+                    task => task.id == RollCallLateTaskId))
+                return;
+
+            GameActorData actor = GetLocalActor();
+            if (actor == null || actor.role == "officer" ||
+                actor.eliminated || !actor.online)
+                return;
+            Vector2 offset = new Vector2(
+                actor.x - GameSimulation.AssemblyCenterX,
+                actor.y - GameSimulation.AssemblyCenterY);
+            if (offset.magnitude > RollCallAssemblyRadius)
+                CompleteTask(RollCallLateTaskId);
+        }
+
+        private void UpdateUniqueLickTask()
+        {
+            bool taskActive = taskPool != null &&
+                taskPool.ActiveTasks.Any(
+                    task => task.id == LickTenUniqueFrogsTaskId);
+            RoomStateData room = LanRoomService.Instance.CurrentRoom;
+            GameStateData game = room?.game;
+            if (!taskActive || game == null)
+            {
+                uniqueLickTaskWasActive = false;
+                lastTongueActionByPlayer.Clear();
+                uniqueLickedTargetsByPlayer.Clear();
+                return;
+            }
+
+            List<GameActorData> soldiers = game.players.Where(
+                player => player.role == "disguiser" &&
+                          player.online && !player.eliminated).ToList();
+            if (!uniqueLickTaskWasActive)
+            {
+                uniqueLickTaskWasActive = true;
+                foreach (GameActorData soldier in soldiers)
+                    lastTongueActionByPlayer[soldier.id] = soldier.actionId;
+                return;
+            }
+
+            List<GameActorData> allTargets =
+                game.players.Concat(game.npcs)
+                    .Where(target => target.online && !target.eliminated)
+                    .ToList();
+            foreach (GameActorData soldier in soldiers)
+            {
+                int lastActionId;
+                if (lastTongueActionByPlayer.TryGetValue(
+                        soldier.id, out lastActionId) &&
+                    lastActionId == soldier.actionId)
+                    continue;
+                lastTongueActionByPlayer[soldier.id] = soldier.actionId;
+                if (soldier.action != "tongue") continue;
+
+                GameActorData target = allTargets
+                    .Where(candidate => candidate.id != soldier.id &&
+                                        IsTongueAimedAt(soldier, candidate))
+                    .OrderBy(candidate =>
+                        (candidate.x - soldier.x) *
+                        (candidate.x - soldier.x) +
+                        (candidate.y - soldier.y) *
+                        (candidate.y - soldier.y))
+                    .FirstOrDefault();
+                if (target == null) continue;
+
+                HashSet<string> lickedTargets;
+                if (!uniqueLickedTargetsByPlayer.TryGetValue(
+                        soldier.id, out lickedTargets))
+                {
+                    lickedTargets = new HashSet<string>();
+                    uniqueLickedTargetsByPlayer[soldier.id] = lickedTargets;
+                }
+                lickedTargets.Add(target.id);
+                if (lickedTargets.Count < 10) continue;
+
+                uniqueLickTaskWasActive = false;
+                lastTongueActionByPlayer.Clear();
+                uniqueLickedTargetsByPlayer.Clear();
+                CompleteTask(LickTenUniqueFrogsTaskId);
+                return;
+            }
+        }
+
+        private void UpdateActionTasks()
         {
             GameActorData actor = GetLocalActor();
             if (actor == null) return;
             if (actor.actionId == lastLocalActionId) return;
             lastLocalActionId = actor.actionId;
-            if (taskPool == null ||
-                !taskPool.ActiveTasks.Any(task => task.id == AttackOfficerTaskId) ||
-                actor.role == "officer" || actor.action != "tongue")
+            if (taskPool == null || actor.role == "officer") return;
+
+            bool croakTaskActive = taskPool.ActiveTasks.Any(
+                task => task.id == CroakFiveTimesTaskId);
+            if (!croakTaskActive)
+                consecutiveCroakCount = 0;
+            else if (actor.action == "croak")
+            {
+                consecutiveCroakCount++;
+                if (consecutiveCroakCount >= 5)
+                {
+                    consecutiveCroakCount = 0;
+                    CompleteTask(CroakFiveTimesTaskId);
+                }
+            }
+            else if (!string.IsNullOrEmpty(actor.action))
+            {
+                consecutiveCroakCount = 0;
+            }
+
+            bool saluteTaskActive = taskPool.ActiveTasks.Any(
+                task => task.id == SaluteFiveTimesTaskId);
+            if (!saluteTaskActive)
+                saluteCount = 0;
+            else if (actor.action == "salute")
+            {
+                saluteCount++;
+                if (saluteCount >= 5)
+                {
+                    saluteCount = 0;
+                    CompleteTask(SaluteFiveTimesTaskId);
+                }
+            }
+            else if (!string.IsNullOrEmpty(actor.action))
+            {
+                saluteCount = 0;
+            }
+
+            if (actor.action != "tongue") return;
+
+            if (taskPool.ActiveTasks.Any(
+                    task => task.id == CabinetTaskId) &&
+                IsInsideTaskArea(actor, cabinetTaskArea,
+                    CabinetTaskWorldArea) &&
+                CompleteTask(CabinetTaskId))
+                return;
+
+            if (taskPool.ActiveTasks.Any(
+                    task => task.id == EatInsectsTaskId) &&
+                IsInsideTaskArea(actor, null, InsectTaskWorldArea) &&
+                CompleteTask(EatInsectsTaskId))
                 return;
 
             RoomStateData room = LanRoomService.Instance.CurrentRoom;
             if (room?.game == null) return;
-            IEnumerable<GameActorData> officers = room.game.players
-                .Concat(room.game.npcs)
-                .Where(target => target.role == "officer" &&
-                                 target.online && !target.eliminated);
-            if (officers.Any(target => IsTongueAimedAt(actor, target)))
-                CompleteTask(AttackOfficerTaskId);
+            IEnumerable<GameActorData> targets =
+                room.game.players.Concat(room.game.npcs);
+
+            if (taskPool.ActiveTasks.Any(
+                    task => task.id == AttackOfficerTaskId))
+            {
+                IEnumerable<GameActorData> officers = targets.Where(
+                    target => target.role == "officer" &&
+                              target.online && !target.eliminated);
+                if (officers.Any(
+                        target => IsTongueAimedAt(actor, target)) &&
+                    CompleteTask(AttackOfficerTaskId))
+                    return;
+            }
+
+            if (taskPool.ActiveTasks.Any(
+                    task => task.id == LickCompanionTaskId))
+            {
+                IEnumerable<GameActorData> companions = targets.Where(
+                    target => target.id != actor.id &&
+                              target.role == "disguiser" &&
+                              target.online && !target.eliminated);
+                if (companions.Any(target =>
+                        IsTongueAimedAt(actor, target) &&
+                        IsBehindTarget(actor, target)))
+                    CompleteTask(LickCompanionTaskId);
+            }
         }
 
         private static bool IsTongueAimedAt(
@@ -590,6 +823,25 @@ namespace FrogCamp.Tasks
                 return false;
             Vector2 sideways = offset - direction * projection;
             return sideways.magnitude <= GameSimulation.ColliderRadius + 5f;
+        }
+
+        private static bool IsBehindTarget(
+            GameActorData attacker, GameActorData target)
+        {
+            Vector2 fromTargetToAttacker = new Vector2(
+                attacker.x - target.x, attacker.y - target.y).normalized;
+            Vector2 targetForward =
+                GameSimulation.FacingVector(target.facing);
+            return Vector2.Dot(fromTargetToAttacker, targetForward) < -0.45f;
+        }
+
+        private static bool IsIdling(
+            GameActorData actor, bool inside)
+        {
+            return actor != null && inside && !actor.moving &&
+                   Mathf.Abs(actor.inputX) < 0.01f &&
+                   Mathf.Abs(actor.inputY) < 0.01f &&
+                   string.IsNullOrEmpty(actor.action);
         }
 
         private static GameActorData GetLocalActor()
