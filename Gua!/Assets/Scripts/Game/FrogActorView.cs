@@ -7,7 +7,9 @@ namespace FrogCamp.Gameplay
     public sealed class FrogActorView : MonoBehaviour
     {
         private RectTransform rect;
+        private RectTransform visualRect;
         private FrogGraphic graphic;
+        private FrogShadowGraphic shadow;
         private RawImage frameImage;
         private FrogAnimationSet animations;
         private Vector2 targetPosition;
@@ -22,25 +24,54 @@ namespace FrogCamp.Gameplay
             FrogAnimationSet greenAnimations, FrogAnimationSet pinkAnimations)
         {
             GameObject instance = new GameObject("Frog_" + actor.id,
-                typeof(RectTransform), typeof(CanvasRenderer), typeof(FrogGraphic),
-                typeof(FrogActorView));
+                typeof(RectTransform), typeof(FrogActorView));
             instance.transform.SetParent(parent, false);
             FrogActorView view = instance.GetComponent<FrogActorView>();
             view.rect = instance.GetComponent<RectTransform>();
             view.rect.sizeDelta = new Vector2(76f, 96f);
-            view.graphic = instance.GetComponent<FrogGraphic>();
+
+            GameObject shadowObject = new GameObject("FrogShadow",
+                typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(FrogShadowGraphic));
+            shadowObject.transform.SetParent(instance.transform, false);
+            RectTransform shadowRect =
+                shadowObject.GetComponent<RectTransform>();
+            shadowRect.anchorMin = shadowRect.anchorMax =
+                new Vector2(0.5f, 0.5f);
+            shadowRect.anchoredPosition = new Vector2(0f, -25f);
+            shadowRect.sizeDelta = new Vector2(44f, 13f);
+            view.shadow = shadowObject.GetComponent<FrogShadowGraphic>();
+            view.shadow.raycastTarget = false;
+
+            GameObject visualObject = new GameObject("FrogVisual",
+                typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(FrogGraphic), typeof(SoftSilhouetteShadow));
+            visualObject.transform.SetParent(instance.transform, false);
+            view.visualRect = visualObject.GetComponent<RectTransform>();
+            view.visualRect.anchorMin = view.visualRect.anchorMax =
+                new Vector2(0.5f, 0.5f);
+            view.visualRect.sizeDelta = view.rect.sizeDelta;
+            view.graphic = visualObject.GetComponent<FrogGraphic>();
             view.graphic.raycastTarget = false;
+            Color bodyShadowColor = actor.role == "officer"
+                ? new Color(0.22f, 0.12f, 0.18f, 0.24f)
+                : new Color(0.07f, 0.18f, 0.16f, 0.24f);
+            visualObject.GetComponent<SoftSilhouetteShadow>()
+                .Configure(bodyShadowColor, 2.6f);
             view.animations = actor.role == "officer" ? pinkAnimations : greenAnimations;
             if (view.animations != null)
             {
                 GameObject frameObject = new GameObject("FrogFrameAnimation",
-                    typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
-                frameObject.transform.SetParent(instance.transform, false);
+                    typeof(RectTransform), typeof(CanvasRenderer),
+                    typeof(RawImage), typeof(SoftSilhouetteShadow));
+                frameObject.transform.SetParent(visualObject.transform, false);
                 RectTransform frameRect = frameObject.GetComponent<RectTransform>();
                 frameRect.anchorMin = frameRect.anchorMax = new Vector2(.5f, .5f);
                 frameRect.sizeDelta = new Vector2(82f, 82f);
                 view.frameImage = frameObject.GetComponent<RawImage>();
                 view.frameImage.raycastTarget = false;
+                frameObject.GetComponent<SoftSilhouetteShadow>()
+                    .Configure(bodyShadowColor, 2.6f);
             }
             view.ActorId = actor.id;
             view.Apply(actor, true);
@@ -67,7 +98,8 @@ namespace FrogCamp.Gameplay
                                  !string.IsNullOrEmpty(actor.actionFacing)
                 ? actor.actionFacing : actor.facing;
             int facingIndex = System.Array.IndexOf(facings, shownFacing);
-            rect.localRotation = Quaternion.Euler(0f, 0f, -(facingIndex < 0 ? 0 : facingIndex * 45f));
+            visualRect.localRotation = Quaternion.Euler(0f, 0f,
+                -(facingIndex < 0 ? 0 : facingIndex * 45f));
         }
 
         private void Update()
@@ -98,9 +130,20 @@ namespace FrogCamp.Gameplay
             float idle = !data.eliminated && !data.stunned &&
                          !useIdleFrames && !data.moving && string.IsNullOrEmpty(data.action)
                 ? Mathf.Sin(Time.unscaledTime * 4.5f) : 0f;
-            rect.localScale = new Vector3(1f + idle * .018f,
+            visualRect.localScale = new Vector3(1f + idle * .018f,
                 1f - idle * .025f, 1f);
-            rect.anchoredPosition += Vector2.up * (hop * 3f + jump * 12f);
+            float visualLift = hop * 3f + jump * 12f;
+            visualRect.anchoredPosition = Vector2.up * visualLift;
+            float framedHopLift = useHopFrames
+                ? Mathf.Abs(Mathf.Sin(Time.unscaledTime * 7.5f)) * 0.28f
+                : 0f;
+            float jumpLift = data.action == "jump"
+                ? Mathf.Sin(progress * Mathf.PI) : 0f;
+            float fallbackLift = Mathf.Clamp01(
+                visualLift / 12f);
+            shadow.SetState(Mathf.Max(
+                Mathf.Max(framedHopLift, jumpLift), fallbackLift),
+                data.eliminated);
             bool useExternalFrames = useIdleFrames || useHopFrames || useActionFrames;
             graphic.enabled = !useExternalFrames;
             if (frameImage != null)

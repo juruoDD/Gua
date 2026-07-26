@@ -427,6 +427,10 @@ namespace FrogCamp.Networking
         private static bool CanOccupy(GameActorData actor, float x, float y,
             IEnumerable<GameActorData> actors)
         {
+            if (!PondObstacleMap.CanOccupy(
+                    new Vector2(x, y), ColliderRadius))
+                return false;
+
             float minimum = ColliderRadius * 2f;
             foreach (GameActorData other in actors)
             {

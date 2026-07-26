@@ -40,7 +40,6 @@ namespace FrogCamp.Gameplay
             float leftLeg = action == "legLeft" ? amount * 7f : Mathf.Max(0f, walk);
             float rightLeg = action == "legRight" ? amount * 7f : Mathf.Max(0f, -walk);
 
-            AddEllipse(mesh, new Vector2(0, -25), new Vector2(18, 5), Hex("#41634845"), 16);
             AddEllipse(mesh, new Vector2(-16 - leftLeg, -10), new Vector2(14 + leftLeg, 7), outline, 14);
             AddEllipse(mesh, new Vector2(16 + rightLeg, -10), new Vector2(14 + rightLeg, 7), outline, 14);
             AddEllipse(mesh, new Vector2(-16 - leftLeg, -10), new Vector2(12 + leftLeg, 5), shade, 14);

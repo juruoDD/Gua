@@ -17,7 +17,7 @@ namespace FrogCamp.UI
         [SerializeField, Range(0f, 1f)] private float waterOpacity = 1f;
         [SerializeField] private Color particleColor =
             new Color(0.94f, 1f, 1f, 0.92f);
-        [SerializeField, Range(8, 80)] private int particleCount = 52;
+        [SerializeField, Range(8, 120)] private int particleCount = 52;
         [SerializeField, Range(0.1f, 2f)] private float particleSpeed = 0.82f;
         [SerializeField] private Vector2[] waterPoints =
         {
@@ -36,6 +36,7 @@ namespace FrogCamp.UI
             new Color(1f, 0.94f, 0.40f, 0.95f);
         [SerializeField, Range(0.1f, 3f)] private float starSpeed = 1f;
         [SerializeField, Range(0f, 1f)] private float starOpacity = 1f;
+        [SerializeField] private bool starsUseFullRect;
         [SerializeField] private Vector2[] titleStarPoints =
         {
             new Vector2(0.05f, 0.76f),
@@ -45,6 +46,13 @@ namespace FrogCamp.UI
             new Vector2(0.24f, 0.91f),
             new Vector2(0.76f, 0.10f)
         };
+
+        [Header("像素风线")]
+        [SerializeField] private Color windColor =
+            new Color(0.88f, 1f, 0.94f, 0.36f);
+        [SerializeField, Range(0, 32)] private int windLineCount;
+        [SerializeField, Range(0.1f, 3f)] private float windSpeed = 0.72f;
+        [SerializeField, Range(0f, 1f)] private float windOpacity = 0.5f;
 
         public void Configure(RectTransform title)
         {
@@ -77,6 +85,7 @@ namespace FrogCamp.UI
             float time = CurrentTime;
             DrawWater(vertexHelper, time);
             DrawWaterParticles(vertexHelper, time);
+            DrawWind(vertexHelper, time);
             DrawTitleStars(vertexHelper, time);
         }
 
@@ -167,7 +176,7 @@ namespace FrogCamp.UI
 
             Rect rect = rectTransform.rect;
             float unit = Mathf.Max(1f, pixelSize);
-            int count = Mathf.Clamp(particleCount, 0, 80);
+            int count = Mathf.Clamp(particleCount, 0, 120);
             for (int i = 0; i < count; i++)
             {
                 float seedA = Hash01(i * 17 + 3);
@@ -204,13 +213,24 @@ namespace FrogCamp.UI
 
         private void DrawTitleStars(VertexHelper vh, float time)
         {
-            if (titleTransform == null) return;
-
-            Vector3[] corners = new Vector3[4];
-            titleTransform.GetWorldCorners(corners);
-            Vector2 bottomLeft = rectTransform.InverseTransformPoint(corners[0]);
-            Vector2 topRight = rectTransform.InverseTransformPoint(corners[2]);
-            Vector2 size = topRight - bottomLeft;
+            Vector2 bottomLeft;
+            Vector2 size;
+            if (starsUseFullRect)
+            {
+                Rect rect = rectTransform.rect;
+                bottomLeft = rect.min;
+                size = rect.size;
+            }
+            else
+            {
+                if (titleTransform == null) return;
+                Vector3[] corners = new Vector3[4];
+                titleTransform.GetWorldCorners(corners);
+                bottomLeft = rectTransform.InverseTransformPoint(corners[0]);
+                Vector2 topRight =
+                    rectTransform.InverseTransformPoint(corners[2]);
+                size = topRight - bottomLeft;
+            }
             float unit = Mathf.Max(1f, pixelSize);
 
             for (int i = 0; i < titleStarPoints.Length; i++)
@@ -239,6 +259,42 @@ namespace FrogCamp.UI
                         unit * 0.48f, corner);
                     AddPixel(vh, point + new Vector2(-arm * 1.55f, 0f),
                         unit * 0.48f, corner);
+                }
+            }
+        }
+
+        private void DrawWind(VertexHelper vh, float time)
+        {
+            if (windLineCount <= 0) return;
+            Rect rect = rectTransform.rect;
+            float unit = Mathf.Max(1f, pixelSize);
+            int count = Mathf.Clamp(windLineCount, 0, 32);
+            for (int index = 0; index < count; index++)
+            {
+                float seedA = Hash01(index * 29 + 7);
+                float seedB = Hash01(index * 43 + 17);
+                float seedC = Hash01(index * 61 + 31);
+                float phase = Mathf.Repeat(time * windSpeed *
+                    Mathf.Lerp(0.72f, 1.24f, seedA) + seedB, 1f);
+                float x = Mathf.Lerp(rect.xMin - unit * 14f,
+                    rect.xMax + unit * 14f, phase);
+                float y = Mathf.Lerp(rect.yMin + rect.height * 0.12f,
+                    rect.yMax - rect.height * 0.10f, seedC) +
+                    Mathf.Sin(time * 0.8f + index) * unit * 1.4f;
+                float alpha = Mathf.Sin(phase * Mathf.PI) *
+                    windOpacity * Mathf.Lerp(0.32f, 0.72f, seedB);
+                Color color = WithAlpha(windColor, alpha);
+                float length = unit * Mathf.Lerp(3.5f, 8.5f, seedA);
+                float thickness = Mathf.Max(1f, unit * 0.28f);
+                AddRect(vh, new Vector2(x, y),
+                    new Vector2(length, thickness), color);
+                AddRect(vh, new Vector2(x - length * 0.72f,
+                        y - unit * 0.8f),
+                    new Vector2(length * 0.42f, thickness), color);
+                if (index % 3 == 0)
+                {
+                    AddPixel(vh, new Vector2(x + length * 0.72f,
+                        y + unit * 0.55f), thickness * 1.4f, color);
                 }
             }
         }

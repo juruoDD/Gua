@@ -10,30 +10,32 @@ namespace FrogCamp.UI
     public sealed class MusicWaveformGraphic : MaskableGraphic
     {
         [SerializeField] private AudioSource musicSource;
-        [SerializeField, Range(16, 96)] private int barCount = 80;
-        [SerializeField, Range(0.5f, 16f)] private float sensitivity = 8.5f;
-        [SerializeField, Range(1f, 24f)] private float smoothing = 9f;
-        [SerializeField, Range(0f, 0.35f)] private float minimumLevel = 0.11f;
-        [SerializeField, Range(0.4f, 1f)] private float responseCurve = 0.68f;
-        [SerializeField, Range(0f, 0.6f)] private float glowOpacity = 0.12f;
-        [SerializeField, Range(0.2f, 0.9f)] private float barWidthRatio = 0.72f;
-        [SerializeField, Range(2f, 12f)] private float pixelBlockHeight = 6f;
-        [SerializeField, Range(0f, 5f)] private float pixelBlockGap = 1.5f;
-        [SerializeField, Range(0, 500)] private int pixelParticleCount = 320;
-        [SerializeField, Range(0.5f, 3f)] private float particleSizeMultiplier = 0.9f;
-        [SerializeField, Range(0.1f, 0.8f)] private float particleRiseRatio = 0.62f;
-        [SerializeField, Range(0f, 1.5f)] private float particleHorizontalDrift = 0.55f;
-        [SerializeField, Range(0.2f, 2f)] private float particleGlowStrength = 0.35f;
-        [SerializeField, Range(0.5f, 3f)] private float beatParticleBurst = 1.35f;
+        [SerializeField, Range(16, 96)] private int barCount = 96;
+        [SerializeField, Range(0.5f, 16f)] private float sensitivity = 7.2f;
+        [SerializeField, Range(1f, 24f)] private float smoothing = 8.5f;
+        [SerializeField, Range(0f, 0.35f)] private float minimumLevel = 0.06f;
+        [SerializeField, Range(0.4f, 1f)] private float responseCurve = 0.72f;
+        [SerializeField, Range(0f, 0.6f)] private float glowOpacity = 0.04f;
+        [SerializeField, Range(0.2f, 0.9f)] private float barWidthRatio = 0.7f;
+        [SerializeField, Range(2f, 12f)] private float pixelBlockHeight = 6.5f;
+        [SerializeField, Range(0f, 8f)] private float pixelBlockGap = 5f;
+        [SerializeField, Range(0.2f, 1f)] private float waveformHeightRatio = 0.58f;
+        [SerializeField, Range(0, 500)] private int pixelParticleCount = 72;
+        [SerializeField, Range(0.3f, 3f)] private float particleSizeMultiplier = 0.5f;
+        [SerializeField, Range(0.05f, 0.8f)] private float particleRiseRatio = 0.26f;
+        [SerializeField, Range(0f, 1.5f)] private float particleHorizontalDrift = 0.3f;
+        [SerializeField, Range(0f, 2f)] private float particleGlowStrength = 0.12f;
+        [SerializeField, Range(0.5f, 3f)] private float beatParticleBurst = 1.15f;
+        [FormerlySerializedAs("forceReferenceGreenTheme")]
         [FormerlySerializedAs("forceWarmTheme")]
         [FormerlySerializedAs("forceGreenTheme")]
-        [SerializeField] private bool forceReferenceGreenTheme = true;
+        [SerializeField] private bool forceWhiteTheme = true;
         [SerializeField] private Color quietColor =
-            new Color(0.47f, 0.62f, 0.48f, 0.98f);
+            new Color(0.88f, 0.92f, 0.89f, 0.96f);
         [SerializeField] private Color loudColor =
-            new Color(0.20f, 0.36f, 0.26f, 1f);
+            new Color(1f, 1f, 1f, 1f);
         [SerializeField] private Color beatColor =
-            new Color(0.66f, 0.82f, 0.45f, 1f);
+            new Color(1f, 1f, 1f, 1f);
 
         private readonly float[] spectrum = new float[256];
         private readonly float[] secondarySpectrum = new float[256];
@@ -50,25 +52,26 @@ namespace FrogCamp.UI
 
         public void ApplyReferenceStyle()
         {
-            barCount = 80;
-            sensitivity = 8.5f;
-            smoothing = 9f;
-            minimumLevel = 0.11f;
-            responseCurve = 0.68f;
-            glowOpacity = 0.12f;
-            barWidthRatio = 0.72f;
-            pixelBlockHeight = 6f;
-            pixelBlockGap = 1.5f;
-            pixelParticleCount = 320;
-            particleSizeMultiplier = 0.9f;
-            particleRiseRatio = 0.62f;
-            particleHorizontalDrift = 0.55f;
-            particleGlowStrength = 0.35f;
-            beatParticleBurst = 1.35f;
-            forceReferenceGreenTheme = true;
-            quietColor = new Color(0.47f, 0.62f, 0.48f, 0.98f);
-            loudColor = new Color(0.20f, 0.36f, 0.26f, 1f);
-            beatColor = new Color(0.66f, 0.82f, 0.45f, 1f);
+            barCount = 96;
+            sensitivity = 7.2f;
+            smoothing = 8.5f;
+            minimumLevel = 0.06f;
+            responseCurve = 0.72f;
+            glowOpacity = 0.04f;
+            barWidthRatio = 0.7f;
+            pixelBlockHeight = 6.5f;
+            pixelBlockGap = 5f;
+            waveformHeightRatio = 0.58f;
+            pixelParticleCount = 72;
+            particleSizeMultiplier = 0.5f;
+            particleRiseRatio = 0.26f;
+            particleHorizontalDrift = 0.3f;
+            particleGlowStrength = 0.12f;
+            beatParticleBurst = 1.15f;
+            forceWhiteTheme = true;
+            quietColor = new Color(0.88f, 0.92f, 0.89f, 0.96f);
+            loudColor = new Color(1f, 1f, 1f, 1f);
+            beatColor = new Color(1f, 1f, 1f, 1f);
             EnsureHeights();
             SetVerticesDirty();
         }
@@ -165,10 +168,11 @@ namespace FrogCamp.UI
             EnsureHeights();
             Rect area = GetPixelAdjustedRect();
             float cellWidth = area.width / barCount;
-            float barWidth = Mathf.Max(2f, cellWidth * barWidthRatio);
-            float blockHeight = Mathf.Min(pixelBlockHeight, barWidth);
-            float blockStep = Mathf.Max(1f, blockHeight + pixelBlockGap);
-            float availableHeight = area.height;
+            float requestedWidth = Mathf.Max(2f,
+                cellWidth * barWidthRatio);
+            float dotSize = Mathf.Min(pixelBlockHeight, requestedWidth);
+            float blockStep = Mathf.Max(1f, dotSize + pixelBlockGap);
+            float availableHeight = area.height * waveformHeightRatio;
             ResolveColors(out Color quiet, out Color loud, out Color beat);
 
             for (int index = 0; index < barCount; index++)
@@ -191,7 +195,7 @@ namespace FrogCamp.UI
                     Mathf.Pow(Mathf.Clamp01(signal), responseCurve) *
                     (1f - minimumLevel) +
                     beatPulse * 0.55f * pulseShape);
-                float height = Mathf.Lerp(blockHeight, availableHeight, level);
+                float height = Mathf.Lerp(dotSize, availableHeight, level);
                 float centerX = area.xMin + cellWidth * (index + 0.5f);
                 Color barColor = Color.Lerp(quiet, loud, level);
                 barColor = Color.Lerp(barColor, beat, beatPulse * 0.82f);
@@ -200,11 +204,11 @@ namespace FrogCamp.UI
                 for (int block = 0; block < blockCount; block++)
                 {
                     float centerY = area.yMin + block * blockStep +
-                        blockHeight * 0.5f;
-                    if (centerY + blockHeight * 0.5f > area.yMax)
+                        dotSize * 0.5f;
+                    if (centerY + dotSize * 0.5f > area.yMax)
                         break;
                     AddRect(vertexHelper, new Vector2(centerX, centerY),
-                        new Vector2(barWidth, blockHeight), barColor);
+                        Vector2.one * dotSize, barColor);
                 }
             }
 
@@ -223,11 +227,11 @@ namespace FrogCamp.UI
         private void ResolveColors(out Color quiet, out Color loud,
             out Color beat)
         {
-            if (forceReferenceGreenTheme)
+            if (forceWhiteTheme)
             {
-                quiet = new Color(0.47f, 0.62f, 0.48f, 0.98f);
-                loud = new Color(0.20f, 0.36f, 0.26f, 1f);
-                beat = new Color(0.66f, 0.82f, 0.45f, 1f);
+                quiet = new Color(0.88f, 0.92f, 0.89f, 0.96f);
+                loud = new Color(1f, 1f, 1f, 1f);
+                beat = new Color(1f, 1f, 1f, 1f);
                 return;
             }
             quiet = quietColor;
