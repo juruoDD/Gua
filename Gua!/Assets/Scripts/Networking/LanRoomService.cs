@@ -221,27 +221,35 @@ namespace FrogCamp.Networking
 
         public bool CanStart(out string reason)
         {
-            if (CurrentRoom == null)
+            return CanStartRoom(CurrentRoom, out reason);
+        }
+
+        public static bool CanStartRoom(RoomStateData room, out string reason)
+        {
+            if (room == null)
             {
                 reason = "尚未加入房间";
                 return false;
             }
-            if (CurrentRoom.players.Count < MinPlayers)
+            if (room.players.Count < MinPlayers)
             {
                 reason = "至少需要 1 名玩家";
                 return false;
             }
-            if (CurrentRoom.players.Any(player => string.IsNullOrEmpty(player.role)))
+            if (room.players.Any(player => string.IsNullOrEmpty(player.role)))
             {
                 reason = "所有玩家都需要选择身份";
                 return false;
             }
-            if (CurrentRoom.players.Count(player => player.role == "officer") != 1)
+            // 单人模式用于快速测试：军官或士兵（伪装者）都可独自开局。
+            // 多人模式仍维持“且只能有一名军官”的正式规则。
+            if (room.players.Count > 1 &&
+                room.players.Count(player => player.role == "officer") != 1)
             {
                 reason = "房间需要且只能有 1 名军官";
                 return false;
             }
-            if (CurrentRoom.players.Any(player => !player.ready))
+            if (room.players.Any(player => !player.ready))
             {
                 reason = "等待所有玩家准备";
                 return false;

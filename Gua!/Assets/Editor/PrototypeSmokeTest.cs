@@ -61,6 +61,8 @@ namespace FrogCamp.Editor
             if (missingOfficer.soundEvent != "tongueCast" ||
                 missingOfficer.soundEventId != 1)
                 throw new System.Exception("吐舌动作声音事件没有同步生成。");
+            missingOfficer.x = GameSimulation.AssemblyCenterX;
+            missingOfficer.y = GameSimulation.AssemblyCenterY;
             GameSimulation.StartAction(soundGame, missingOfficer.id, "whistle", 11f);
             if (missingOfficer.soundEvent != "whistle" ||
                 missingOfficer.soundEventId != 2)

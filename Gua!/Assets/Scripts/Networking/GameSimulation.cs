@@ -88,6 +88,8 @@ namespace FrogCamp.Networking
         public static GameStateData Create(RoomStateData room, float now)
         {
             GameStateData game = new GameStateData();
+            bool needsTestOfficer =
+                !room.players.Any(player => player.role == "officer");
             foreach (RoomPlayerData player in room.players)
             {
                 GameActorData actor = NewActor(player.id, player.name, player.role, false, now);
@@ -96,7 +98,10 @@ namespace FrogCamp.Networking
             }
             for (int index = 0; index < NpcCount; index++)
             {
-                GameActorData npc = NewActor("npc-" + (index + 1), "", "disguiser", true, now);
+                bool testOfficer = needsTestOfficer && index == 0;
+                GameActorData npc = NewActor("npc-" + (index + 1),
+                    testOfficer ? "军官蛙" : "",
+                    testOfficer ? "officer" : "disguiser", true, now);
                 PlaceActor(npc, game.players.Concat(game.npcs).ToList());
                 game.npcs.Add(npc);
             }
@@ -140,7 +145,7 @@ namespace FrogCamp.Networking
             if (action == "whistle" && actor.role == "officer" &&
                 !IsOnCentralLily(actor))
             {
-                game.announcement = "军官必须站在中央荷叶上才能吹哨";
+                game.announcement = "军官必须站在中央空地才能吹哨";
                 game.announcementId++;
                 return;
             }
