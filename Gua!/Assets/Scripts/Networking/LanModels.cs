@@ -48,6 +48,10 @@ namespace FrogCamp.Networking
         public float musicTime;
         public int nextCadenceBeat;
         public List<string> cadenceCommands = new List<string>();
+        public string specialMusicPhase;
+        public float specialMusicTime;
+        public int nextDanceBeat;
+        public List<string> danceCommands = new List<string>();
     }
 
     [Serializable]
@@ -78,6 +82,8 @@ namespace FrogCamp.Networking
         public float jumpY;
         public float stunnedUntil;
         public float nextDecisionAt;
+        public int assemblySlot = -1;
+        public float assemblyBlockedTime;
     }
 
     public class DiscoveredRoom
