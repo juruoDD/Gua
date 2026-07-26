@@ -94,8 +94,8 @@ namespace FrogCamp.Gameplay
                 case "jump":
                     return JumpFrameOffsets[Mathf.Clamp(frame, 0,
                         JumpFrameOffsets.Length - 1)];
-                case "armLeft": return new Vector2(10.57f, tallFrameY);
-                case "armRight": return new Vector2(-9.93f, tallFrameY);
+                case "armLeft": return new Vector2(-9.93f, tallFrameY);
+                case "armRight": return new Vector2(10.57f, tallFrameY);
                 case "legLeft": return new Vector2(-8.97f, 27.87f);
                 case "legRight": return new Vector2(8.65f, tallFrameY);
                 default:

@@ -94,7 +94,7 @@ namespace FrogCamp.UI
 #if UNITY_EDITOR
             greenAnimations.SetTextures(
                 LoadFrogTexture("待机"), LoadFrogTexture("小跳"), LoadFrogTexture("大跳"),
-                LoadFrogTexture("伸左手"), LoadFrogTexture("伸右手"),
+                LoadFrogTexture("伸右手"), LoadFrogTexture("伸左手"),
                 LoadFrogTexture("伸左腿"), LoadFrogTexture("伸右腿"),
                 LoadFrogTexture("张嘴"), LoadFrogTexture("吐舌"), null,
                 LoadFrogTexture("敬礼"));

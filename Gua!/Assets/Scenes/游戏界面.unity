@@ -2053,8 +2053,8 @@ MonoBehaviour:
     idle: {fileID: 2800000, guid: 0a3be05111c82504e8f6f645c8b46bad, type: 3}
     hop: {fileID: 2800000, guid: 6a22472a1e93a984bb3efe7dfe3a2c80, type: 3}
     jump: {fileID: 2800000, guid: 7a50c2c53f9fd864a89528029a5117b7, type: 3}
-    armLeft: {fileID: 2800000, guid: 320bec707a08562498461aa4121c8e64, type: 3}
-    armRight: {fileID: 2800000, guid: 799ad52b749df3842b1c28e7f4064438, type: 3}
+    armLeft: {fileID: 2800000, guid: 799ad52b749df3842b1c28e7f4064438, type: 3}
+    armRight: {fileID: 2800000, guid: 320bec707a08562498461aa4121c8e64, type: 3}
     legLeft: {fileID: 2800000, guid: bdc763a848856d94cb8fb22c0a2e3ee8, type: 3}
     legRight: {fileID: 2800000, guid: 592a3ebec33914046bd7aac67b71c8e7, type: 3}
     croak: {fileID: 2800000, guid: 8e94fa3e3b413914e990ea535e567878, type: 3}
