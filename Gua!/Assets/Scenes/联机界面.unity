@@ -972,7 +972,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: "\u4F2A\u88C5\u8005  \xB7  \u6700\u591A 3 \u4EBA"
+  m_Text: "\u4F2A\u88C5\u5471  \xB7  \u6700\u591A 3 \u4EBA"
 --- !u!222 &530978140
 CanvasRenderer:
   m_ObjectHideFlags: 0
