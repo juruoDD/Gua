@@ -114,7 +114,7 @@ namespace FrogCamp.Gameplay
                     frameRect.sizeDelta = tallFrame
                         ? new Vector2(82f, 164f) : new Vector2(82f, 82f);
                     frameRect.anchoredPosition =
-                        FrogAnimationSet.GetFrameOffset(state);
+                        FrogAnimationSet.GetFrameOffset(state, frame);
                 }
             }
             graphic.SetPose(data.role, data.action, progress, data.moving,

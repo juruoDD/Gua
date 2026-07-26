@@ -71,13 +71,28 @@ namespace FrogCamp.Gameplay
             }
         }
 
-        public static Vector2 GetFrameOffset(string state)
+        private static readonly Vector2[] JumpFrameOffsets =
+        {
+            new Vector2(0f, 27.55f),
+            new Vector2(0.32f, 32.99f),
+            new Vector2(0f, 27.23f),
+            new Vector2(-0.64f, 28.19f),
+            new Vector2(0.64f, 19.86f),
+            new Vector2(-0.96f, 24.02f),
+            new Vector2(0.32f, 30.43f),
+            new Vector2(0.32f, 27.87f)
+        };
+
+        public static Vector2 GetFrameOffset(string state, int frame)
         {
             const float tallFrameY = 27.55f;
             switch (state)
             {
                 case "hop": return new Vector2(0f, 27.87f);
                 case "idle": return Vector2.zero;
+                case "jump":
+                    return JumpFrameOffsets[Mathf.Clamp(frame, 0,
+                        JumpFrameOffsets.Length - 1)];
                 case "armLeft": return new Vector2(10.57f, tallFrameY);
                 case "armRight": return new Vector2(-9.93f, tallFrameY);
                 case "legLeft": return new Vector2(-8.97f, 27.87f);

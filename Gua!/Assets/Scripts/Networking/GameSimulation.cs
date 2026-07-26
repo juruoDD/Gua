@@ -53,6 +53,11 @@ namespace FrogCamp.Networking
         {
             GameActorData actor = FindPlayer(game, id);
             if (!CanControl(actor)) return;
+            if (!string.IsNullOrEmpty(actor.action))
+            {
+                actor.inputX = actor.inputY = 0f;
+                return;
+            }
             Vector2 input = Vector2.ClampMagnitude(new Vector2(x, y), 1f);
             actor.inputX = input.x;
             actor.inputY = input.y;

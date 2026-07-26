@@ -113,8 +113,8 @@ namespace FrogCamp.UI
                 service.SetGameInput(x, y);
             }
             if (Input.GetKeyDown(KeyCode.Space)) service.TriggerGameAction("jump");
-            if (Input.GetKeyDown(KeyCode.Alpha1)) service.TriggerGameAction("armLeft");
-            if (Input.GetKeyDown(KeyCode.Alpha2)) service.TriggerGameAction("armRight");
+            if (Input.GetKeyDown(KeyCode.Alpha1)) service.TriggerGameAction("armRight");
+            if (Input.GetKeyDown(KeyCode.Alpha2)) service.TriggerGameAction("armLeft");
             if (Input.GetKeyDown(KeyCode.Alpha3)) service.TriggerGameAction("legLeft");
             if (Input.GetKeyDown(KeyCode.Alpha4)) service.TriggerGameAction("legRight");
             if (Input.GetKeyDown(KeyCode.H)) service.TriggerGameAction("croak");
