@@ -430,6 +430,9 @@ namespace FrogCamp.Networking
         private static bool IsAssemblyPositionBlocked(
             GameStateData game, Vector2 position)
         {
+            if (!PondObstacleMap.CanOccupy(position, ColliderRadius))
+                return true;
+
             float minimumSquared =
                 Mathf.Pow(ColliderRadius * 2f + 2f, 2f);
             foreach (GameActorData player in game.players)
