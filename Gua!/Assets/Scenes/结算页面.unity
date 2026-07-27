@@ -1295,7 +1295,14 @@ MonoBehaviour:
   overlayRect: {fileID: 1328902532}
   revealDuration: 0.34
   coverDuration: 0.28
+  coveredHoldDuration: 0.35
   transitionScale: 1.045
+  transitionFont: {fileID: 0}
+  transitionLabel: {fileID: 0}
+  tutorialTransitionText: "\u8FDB\u5165\u65B0\u624B\u8BD5\u73A9"
+  transitionFontSize: 62
+  transitionTextColor: {r: 1, g: 1, b: 1, a: 1}
+  transitionOutlineColor: {r: 0.06, g: 0.15, b: 0.17, a: 0.86}
 --- !u!225 &1328902534
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -2416,7 +2423,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &2140000001
 RectTransform:
   m_ObjectHideFlags: 0
