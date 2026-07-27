@@ -36,7 +36,6 @@ namespace FrogCamp.Tasks
             "lick_ten_unique_frogs";
         private const string SaluteFiveTimesTaskId =
             "salute_five_times";
-        private const float BirdNestTaskDuration = 5f;
         private const float IdleTaskDuration = 5f;
         private const float RollCallAssemblyRadius = 135f;
         private const float TaskAreaNearbyPadding = 24f;
@@ -49,6 +48,14 @@ namespace FrogCamp.Tasks
         private static readonly Rect InsectTaskWorldArea =
             new Rect(65f, 330f, 235f, 150f);
         private TaskPool taskPool;
+        private Dictionary<string, TaskDefinition> taskDefinitions;
+        private readonly List<TaskDefinition> sharedActiveTasks =
+            new List<TaskDefinition>();
+        private readonly HashSet<string> knownCompletedTaskIds =
+            new HashSet<string>();
+        private int sharedProgressPercent;
+        private bool sharedTasksFinished;
+        private int lastTaskStateVersion = -1;
         [SerializeField] private string progressPrefix = "任务进度：";
         [SerializeField] private Text progressText;
         [SerializeField] private Image progressFill;
@@ -57,7 +64,6 @@ namespace FrogCamp.Tasks
         [SerializeField] private GameObject birdNestTaskArea;
         [SerializeField] private GameObject cabinetTaskArea;
         private float reedIdleTime;
-        private float birdNestIdleTime;
         private float birdNestSlackIdleTime;
         private float officerHomeIdleTime;
         private int consecutiveCroakCount;
@@ -72,9 +78,9 @@ namespace FrogCamp.Tasks
                 new Dictionary<string, HashSet<string>>();
         private readonly List<GameObject> taskRows = new List<GameObject>();
 
-        public int ProgressPercent => taskPool == null ? 0 : taskPool.ProgressPercent;
+        public int ProgressPercent => sharedProgressPercent;
         public IReadOnlyList<TaskDefinition> ActiveTasks =>
-            taskPool == null ? Array.Empty<TaskDefinition>() : taskPool.ActiveTasks;
+            sharedActiveTasks;
 
         private void Awake()
         {
@@ -89,13 +95,25 @@ namespace FrogCamp.Tasks
         private void Start()
         {
             TaskCatalog catalog = LoadCatalog();
-            taskPool = new TaskPool(catalog);
+            taskDefinitions = catalog.tasks
+                .Where(task => task != null &&
+                               !string.IsNullOrEmpty(task.id))
+                .GroupBy(task => task.id)
+                .ToDictionary(group => group.Key,
+                    group => group.First());
             if (!HasBakedLayout()) BuildRuntimeFallbackLayout();
-            RefreshPanel();
+            LanRoomService service = LanRoomService.Instance;
+            if (service.IsHost)
+            {
+                taskPool = new TaskPool(catalog);
+                PublishHostTaskState();
+            }
+            SyncSharedTaskState(true);
         }
 
         private void Update()
         {
+            SyncSharedTaskState(false);
             UpdateReedTask();
             UpdateBirdNestTask();
             UpdateCabinetTask();
@@ -114,29 +132,28 @@ namespace FrogCamp.Tasks
         /// </summary>
         public bool CompleteTask(string taskId)
         {
-            if (taskPool == null) return false;
-            TaskDefinition task = taskPool.ActiveTasks.FirstOrDefault(item => item.id == taskId);
-            int completedIndex = taskPool.ActiveTasks
-                .TakeWhile(item => item.id != taskId).Count();
-            if (task == null || !taskPool.Complete(taskId)) return false;
+            if (string.IsNullOrEmpty(taskId) ||
+                !sharedActiveTasks.Any(task => task.id == taskId))
+                return false;
+            LanRoomService.Instance.RequestCompleteTask(taskId);
+            return true;
+        }
 
-            Transform completedRow = taskList != null &&
-                                     completedIndex < taskList.childCount
-                ? taskList.GetChild(completedIndex)
-                : null;
-            TaskCompletionFeedback.Play(completedRow);
-            RefreshPanel();
-            TaskCompleted?.Invoke(task);
-            ProgressChanged?.Invoke(taskPool.ProgressPercent);
-            LanRoomService.Instance.ReportTaskProgress(taskPool.ProgressPercent);
+        public bool CompleteTaskAsHost(string taskId)
+        {
+            LanRoomService service = LanRoomService.Instance;
+            if (!service.IsHost || taskPool == null ||
+                !taskPool.Complete(taskId))
+                return false;
+            PublishHostTaskState();
             return true;
         }
 
         [ContextMenu("测试：完成面板第一个任务")]
         private void CompleteFirstTaskForTesting()
         {
-            if (taskPool != null && taskPool.ActiveTasks.Count > 0)
-                CompleteTask(taskPool.ActiveTasks[0].id);
+            if (sharedActiveTasks.Count > 0)
+                CompleteTask(sharedActiveTasks[0].id);
         }
 
         private static TaskCatalog LoadCatalog()
@@ -150,6 +167,93 @@ namespace FrogCamp.Tasks
 
             TaskCatalog catalog = JsonUtility.FromJson<TaskCatalog>(asset.text);
             return catalog ?? new TaskCatalog();
+        }
+
+        private void PublishHostTaskState()
+        {
+            GameStateData game =
+                LanRoomService.Instance.CurrentRoom?.game;
+            if (game == null || taskPool == null) return;
+            if (game.tasks == null)
+                game.tasks = new TaskStateData();
+
+            game.tasks.activeTaskIds =
+                taskPool.ActiveTasks.Select(task => task.id).ToList();
+            game.tasks.completedTaskIds =
+                taskPool.CompletedTaskIds.ToList();
+            game.tasks.progressPercent = taskPool.ProgressPercent;
+            game.tasks.finished = taskPool.IsFinished;
+            game.tasks.version++;
+            SyncSharedTaskState(true);
+        }
+
+        private void SyncSharedTaskState(bool force)
+        {
+            TaskStateData state =
+                LanRoomService.Instance.CurrentRoom?.game?.tasks;
+            if (state == null)
+            {
+                if (force)
+                {
+                    sharedActiveTasks.Clear();
+                    sharedProgressPercent = 0;
+                    sharedTasksFinished = false;
+                    RefreshPanel();
+                }
+                return;
+            }
+            if (!force && state.version == lastTaskStateVersion)
+                return;
+
+            bool initialSync = lastTaskStateVersion < 0;
+            IEnumerable<string> completedIds =
+                state.completedTaskIds ?? new List<string>();
+            if (!initialSync)
+            {
+                foreach (string id in completedIds)
+                {
+                    if (knownCompletedTaskIds.Contains(id)) continue;
+                    int completedIndex =
+                        sharedActiveTasks.FindIndex(task => task.id == id);
+                    Transform completedRow = taskList != null &&
+                                             completedIndex >= 0 &&
+                                             completedIndex < taskList.childCount
+                        ? taskList.GetChild(completedIndex)
+                        : null;
+                    TaskCompletionFeedback.Play(completedRow);
+                }
+            }
+            int previousProgress = sharedProgressPercent;
+            lastTaskStateVersion = state.version;
+            sharedActiveTasks.Clear();
+            if (state.activeTaskIds != null && taskDefinitions != null)
+            {
+                foreach (string id in state.activeTaskIds)
+                {
+                    TaskDefinition task;
+                    if (taskDefinitions.TryGetValue(id, out task))
+                        sharedActiveTasks.Add(task);
+                }
+            }
+            sharedProgressPercent = state.progressPercent;
+            sharedTasksFinished = state.finished;
+            RefreshPanel();
+
+            if (!initialSync && taskDefinitions != null)
+            {
+                foreach (string id in completedIds)
+                {
+                    TaskDefinition task;
+                    if (!knownCompletedTaskIds.Contains(id) &&
+                        taskDefinitions.TryGetValue(id, out task))
+                        TaskCompleted?.Invoke(task);
+                }
+                if (previousProgress != sharedProgressPercent)
+                    ProgressChanged?.Invoke(sharedProgressPercent);
+            }
+            knownCompletedTaskIds.Clear();
+            foreach (string id in completedIds)
+                knownCompletedTaskIds.Add(id);
         }
 
         public void BuildLayoutForEditor(RectTransform map)
@@ -171,7 +275,7 @@ namespace FrogCamp.Tasks
                 {
                     id = BirdNestTaskId,
                     title = "鸟窝偷钥匙",
-                    description = "鸟窝静止 5 秒",
+                    description = "鸟窝旁吐舌",
                     guaranteed = true
                 },
                 new TaskDefinition
@@ -277,9 +381,10 @@ namespace FrogCamp.Tasks
         private void RefreshPanel()
         {
             progressText.text = progressPrefix +
-                                taskPool.ProgressPercent + "%";
+                                sharedProgressPercent + "%";
             RectTransform fillRect = progressFill.rectTransform;
-            fillRect.anchorMax = new Vector2(taskPool.ProgressPercent / 100f, 1f);
+            fillRect.anchorMax =
+                new Vector2(sharedProgressPercent / 100f, 1f);
             fillRect.offsetMin = Vector2.zero;
             fillRect.offsetMax = Vector2.zero;
 
@@ -291,22 +396,22 @@ namespace FrogCamp.Tasks
 
             ClearTaskRows();
 
-            if (taskPool.IsFinished)
+            if (sharedTasksFinished)
             {
-                AddEmptyState("全部任务已完成", "营地秩序恢复良好");
+                AddEmptyState("捣蛋呱获胜", "全部任务已完成");
                 return;
             }
 
-            if (taskPool.ActiveTasks.Count == 0)
+            if (sharedActiveTasks.Count == 0)
             {
                 AddEmptyState("暂无可执行任务", "完成前置任务后将自动解锁");
                 return;
             }
 
-            int count = taskPool.ActiveTasks.Count;
+            int count = sharedActiveTasks.Count;
             float rowHeight = Mathf.Min(0.235f, 0.94f / Mathf.Max(1, count));
             for (int index = 0; index < count; index++)
-                AddTaskRow(taskPool.ActiveTasks[index], index, rowHeight);
+                AddTaskRow(sharedActiveTasks[index], index, rowHeight);
         }
 
         private bool HasBakedTaskRows()
@@ -319,14 +424,14 @@ namespace FrogCamp.Tasks
 
         private void RefreshBakedTaskRows()
         {
-            if (taskPool.IsFinished)
+            if (sharedTasksFinished)
             {
                 ApplyBakedEmptyState(
-                    "全部任务已完成", "营地秩序恢复良好");
+                    "捣蛋呱获胜", "全部任务已完成");
                 return;
             }
 
-            if (taskPool.ActiveTasks.Count == 0)
+            if (sharedActiveTasks.Count == 0)
             {
                 ApplyBakedEmptyState(
                     "暂无可执行任务", "完成前置任务后将自动解锁");
@@ -336,11 +441,11 @@ namespace FrogCamp.Tasks
             for (int index = 0; index < taskList.childCount; index++)
             {
                 Transform row = taskList.GetChild(index);
-                bool active = index < taskPool.ActiveTasks.Count;
+                bool active = index < sharedActiveTasks.Count;
                 row.gameObject.SetActive(active);
                 if (!active) continue;
 
-                TaskDefinition task = taskPool.ActiveTasks[index];
+                TaskDefinition task = sharedActiveTasks[index];
                 SetChildText(row, "Title", task.title);
                 SetChildText(row, "Description",
                     string.IsNullOrEmpty(task.description)
@@ -483,8 +588,9 @@ namespace FrogCamp.Tasks
 
         private void UpdateReedTask()
         {
-            if (taskPool == null || reedTaskArea == null) return;
-            bool taskActive = taskPool.ActiveTasks.Any(task => task.id == ReedTaskId);
+            if (reedTaskArea == null) return;
+            bool taskActive =
+                sharedActiveTasks.Any(task => task.id == ReedTaskId);
             reedTaskArea.SetActive(taskActive);
             if (!taskActive)
             {
@@ -515,15 +621,15 @@ namespace FrogCamp.Tasks
 
         private void UpdateBirdNestTask()
         {
-            if (taskPool == null || birdNestTaskArea == null) return;
+            if (birdNestTaskArea == null) return;
             bool keyTaskActive =
-                taskPool.ActiveTasks.Any(task => task.id == BirdNestTaskId);
+                sharedActiveTasks.Any(task => task.id == BirdNestTaskId);
             bool slackTaskActive =
-                taskPool.ActiveTasks.Any(task => task.id == IdleBirdNestTaskId);
+                sharedActiveTasks.Any(
+                    task => task.id == IdleBirdNestTaskId);
             birdNestTaskArea.SetActive(keyTaskActive || slackTaskActive);
             if (!keyTaskActive && !slackTaskActive)
             {
-                birdNestIdleTime = 0f;
                 birdNestSlackIdleTime = 0f;
                 return;
             }
@@ -534,16 +640,8 @@ namespace FrogCamp.Tasks
                           IsInsideTaskArea(actor, birdNestTaskArea,
                               BirdNestTaskWorldArea);
             bool idling = IsIdling(actor, inside);
-            birdNestIdleTime = keyTaskActive && idling
-                ? birdNestIdleTime + Time.unscaledDeltaTime : 0f;
             birdNestSlackIdleTime = slackTaskActive && idling
                 ? birdNestSlackIdleTime + Time.unscaledDeltaTime : 0f;
-            if (keyTaskActive &&
-                birdNestIdleTime >= BirdNestTaskDuration)
-            {
-                birdNestIdleTime = 0f;
-                CompleteTask(BirdNestTaskId);
-            }
             if (slackTaskActive &&
                 birdNestSlackIdleTime >= IdleTaskDuration)
             {
@@ -554,11 +652,11 @@ namespace FrogCamp.Tasks
 
         private void UpdateCabinetTask()
         {
-            if (taskPool == null || cabinetTaskArea == null) return;
+            if (cabinetTaskArea == null) return;
             bool cabinetTaskActive =
-                taskPool.ActiveTasks.Any(task => task.id == CabinetTaskId);
+                sharedActiveTasks.Any(task => task.id == CabinetTaskId);
             bool slackTaskActive =
-                taskPool.ActiveTasks.Any(
+                sharedActiveTasks.Any(
                     task => task.id == IdleOfficerHomeTaskId);
             cabinetTaskArea.SetActive(cabinetTaskActive || slackTaskActive);
             if (!cabinetTaskActive && !slackTaskActive)
@@ -593,8 +691,8 @@ namespace FrogCamp.Tasks
                 lastSpecialMusicPhase == GameSimulation.DancePhaseBell &&
                 phase == GameSimulation.DancePhaseMusic;
             lastSpecialMusicPhase = phase;
-            if (!rollCallJustEnded || taskPool == null ||
-                !taskPool.ActiveTasks.Any(
+            if (!rollCallJustEnded ||
+                !sharedActiveTasks.Any(
                     task => task.id == RollCallLateTaskId))
                 return;
 
@@ -611,8 +709,8 @@ namespace FrogCamp.Tasks
 
         private void UpdateUniqueLickTask()
         {
-            bool taskActive = taskPool != null &&
-                taskPool.ActiveTasks.Any(
+            bool taskActive =
+                sharedActiveTasks.Any(
                     task => task.id == LickTenUniqueFrogsTaskId);
             RoomStateData room = LanRoomService.Instance.CurrentRoom;
             GameStateData game = room?.game;
@@ -684,9 +782,9 @@ namespace FrogCamp.Tasks
             if (actor == null) return;
             if (actor.actionId == lastLocalActionId) return;
             lastLocalActionId = actor.actionId;
-            if (taskPool == null || actor.role == "officer") return;
+            if (actor.role == "officer") return;
 
-            bool croakTaskActive = taskPool.ActiveTasks.Any(
+            bool croakTaskActive = sharedActiveTasks.Any(
                 task => task.id == CroakFiveTimesTaskId);
             if (!croakTaskActive)
                 consecutiveCroakCount = 0;
@@ -704,7 +802,7 @@ namespace FrogCamp.Tasks
                 consecutiveCroakCount = 0;
             }
 
-            bool saluteTaskActive = taskPool.ActiveTasks.Any(
+            bool saluteTaskActive = sharedActiveTasks.Any(
                 task => task.id == SaluteFiveTimesTaskId);
             if (!saluteTaskActive)
                 saluteCount = 0;
@@ -724,14 +822,21 @@ namespace FrogCamp.Tasks
 
             if (actor.action != "tongue") return;
 
-            if (taskPool.ActiveTasks.Any(
+            if (sharedActiveTasks.Any(
+                    task => task.id == BirdNestTaskId) &&
+                IsInsideTaskArea(actor, birdNestTaskArea,
+                    BirdNestTaskWorldArea) &&
+                CompleteTask(BirdNestTaskId))
+                return;
+
+            if (sharedActiveTasks.Any(
                     task => task.id == CabinetTaskId) &&
                 IsInsideTaskArea(actor, cabinetTaskArea,
                     CabinetTaskWorldArea) &&
                 CompleteTask(CabinetTaskId))
                 return;
 
-            if (taskPool.ActiveTasks.Any(
+            if (sharedActiveTasks.Any(
                     task => task.id == EatInsectsTaskId) &&
                 IsInsideTaskArea(actor, null, InsectTaskWorldArea) &&
                 CompleteTask(EatInsectsTaskId))
@@ -742,7 +847,7 @@ namespace FrogCamp.Tasks
             IEnumerable<GameActorData> targets =
                 room.game.players.Concat(room.game.npcs);
 
-            if (taskPool.ActiveTasks.Any(
+            if (sharedActiveTasks.Any(
                     task => task.id == AttackOfficerTaskId))
             {
                 IEnumerable<GameActorData> officers = targets.Where(
@@ -754,7 +859,7 @@ namespace FrogCamp.Tasks
                     return;
             }
 
-            if (taskPool.ActiveTasks.Any(
+            if (sharedActiveTasks.Any(
                     task => task.id == LickCompanionTaskId))
             {
                 IEnumerable<GameActorData> companions = targets.Where(

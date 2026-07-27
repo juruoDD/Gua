@@ -37,6 +37,7 @@ namespace FrogCamp.Networking
         public float inputY;
         public int taskProgress;
         public string action;
+        public string taskId;
     }
 
     [Serializable]
@@ -55,6 +56,17 @@ namespace FrogCamp.Networking
         public List<string> danceCommands = new List<string>();
         public bool ended;
         public string winnerRole;
+        public TaskStateData tasks;
+    }
+
+    [Serializable]
+    public class TaskStateData
+    {
+        public List<string> activeTaskIds = new List<string>();
+        public List<string> completedTaskIds = new List<string>();
+        public int progressPercent;
+        public bool finished;
+        public int version;
     }
 
     [Serializable]
@@ -77,6 +89,9 @@ namespace FrogCamp.Networking
         public string actionFacing;
         public string action;
         public int actionId;
+        public string pendingSequenceAction;
+        public float pendingSequenceActionAt;
+        public bool pendingSequenceActionEmitSound;
         public string soundEvent;
         public int soundEventId;
         public float actionStartedAt;
@@ -85,6 +100,8 @@ namespace FrogCamp.Networking
         public float jumpX;
         public float jumpY;
         public float stunnedUntil;
+        public float nextWhistleAt;
+        public int officerNpcMistakeCount;
         public float nextDecisionAt;
         public int assemblySlot = -1;
         public float assemblyBlockedTime;

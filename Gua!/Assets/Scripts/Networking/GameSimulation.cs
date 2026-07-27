@@ -33,6 +33,7 @@ namespace FrogCamp.Networking
         public const string DancePhaseMusic = "dance";
         public const string DancePhasePause = "pause";
         public const float WhistleSoundDuration = 1f;
+        public const float WhistleCooldown = 30f;
         public const float BellSoundDuration = 4.2f;
         public const float PostDancePauseDuration = 2f;
         public const int DanceBeatCount = 24;
@@ -50,6 +51,10 @@ namespace FrogCamp.Networking
         private const float AssemblyReassignDelay = 1.2f;
         private const float CadenceSequenceMaxGap = 1.5f;
         private const float CadenceDecisionGuard = 0.05f;
+        private const float NpcSequenceTimingErrorRatio = 0.2f;
+        private const float WrongNpcStunDuration = 5f;
+        private const float LongWrongNpcStunDuration = 8f;
+        private const int WrongNpcKillsBeforeLongStun = 3;
         private static readonly string[] Facings =
         {
             "up", "upRight", "right", "downRight",
@@ -151,6 +156,14 @@ namespace FrogCamp.Networking
             if (actor.role == "officer" && IsOfficerLockedForDance(game)) return;
             if (action == "whistle" && IsDanceSequenceActive(game)) return;
             if (action == "whistle" && actor.role == "officer" &&
+                now < actor.nextWhistleAt)
+            {
+                game.announcement = "吹哨冷却中：" +
+                    Mathf.CeilToInt(actor.nextWhistleAt - now) + " 秒";
+                game.announcementId++;
+                return;
+            }
+            if (action == "whistle" && actor.role == "officer" &&
                 !IsOnCentralLily(actor))
             {
                 game.announcement = "军官必须站在中央空地才能吹哨";
@@ -164,7 +177,8 @@ namespace FrogCamp.Networking
                   action == "croak" || action == "tongue" || action == "salute";
             if (!allowed) return;
             BeginAction(actor, action, now);
-            if (action == "whistle") StartDanceSequence(game, actor);
+            if (action == "whistle")
+                StartDanceSequence(game, actor);
         }
 
         public static void Tick(GameStateData game, float deltaTime, float now)
@@ -220,6 +234,7 @@ namespace FrogCamp.Networking
                 GameActorData npc = npcs[npcIndex];
                 if (npc.eliminated || !npc.online) continue;
                 FinishAction(npc, now);
+                StartPendingNpcSequenceAction(npc, now);
                 if (npc.action == "jump")
                 {
                     MoveDuringJump(npc, deltaTime, actors);
@@ -258,6 +273,7 @@ namespace FrogCamp.Networking
                 if (!npc.moving && (npc.inputX != 0f || npc.inputY != 0f))
                     npc.nextDecisionAt = now;
             }
+            EvaluateWinner(game);
         }
 
         public static void SetTaskProgress(GameStateData game, string id, int progress)
@@ -274,6 +290,11 @@ namespace FrogCamp.Networking
         private static void EvaluateWinner(GameStateData game)
         {
             if (game == null || game.ended) return;
+            if (game.tasks != null && game.tasks.finished)
+            {
+                EndGame(game, "disguiser");
+                return;
+            }
             List<GameActorData> disguisers = game.players
                 .Where(actor => actor.role == "disguiser").ToList();
             if (disguisers.Any(actor => actor.taskProgress >= 100))
@@ -296,7 +317,7 @@ namespace FrogCamp.Networking
                 actor.moving = false;
             }
             game.announcement = winnerRole == "officer"
-                ? "军官蛙获胜" : "伪装蛙获胜";
+                ? "军官蛙获胜" : "捣蛋呱获胜";
             game.announcementId++;
         }
 
@@ -349,6 +370,9 @@ namespace FrogCamp.Networking
                 npc.actionFacing = null;
                 npc.actionUntil = 0f;
                 npc.actionResolved = false;
+                npc.pendingSequenceAction = null;
+                npc.pendingSequenceActionAt = 0f;
+                npc.pendingSequenceActionEmitSound = false;
                 npc.jumpX = npc.jumpY = 0f;
                 npc.inputX = npc.inputY = 0f;
                 npc.moving = false;
@@ -573,7 +597,8 @@ namespace FrogCamp.Networking
                     {
                         if (npc.eliminated || !npc.online) continue;
                         bool emitSound = action == "croak" && !croakSoundEmitted;
-                        BeginAction(npc, action, now, emitSound);
+                        ScheduleNpcSequenceAction(npc, action, now,
+                            DanceActionInterval, emitSound);
                         if (emitSound) croakSoundEmitted = true;
                         npc.nextDecisionAt = now + DanceActionInterval;
                     }
@@ -599,6 +624,11 @@ namespace FrogCamp.Networking
             game.nextDanceBeat = 0;
             game.musicTime = 0f;
             game.nextCadenceBeat = 0;
+            GameActorData officer = game.players.FirstOrDefault(
+                actor => actor.role == "officer" &&
+                         actor.online && !actor.eliminated);
+            if (officer != null)
+                officer.nextWhistleAt = now + WhistleCooldown;
         }
 
         public static void SetPlayerOffline(GameStateData game, string id)
@@ -719,10 +749,19 @@ namespace FrogCamp.Networking
                 bool sequenceContinues = nextBeatIndex < beats.Count &&
                     beats[nextBeatIndex].time - beats[currentBeatIndex].time <=
                     CadenceSequenceMaxGap;
+                float actionInterval = sequenceContinues
+                    ? beats[nextBeatIndex].time -
+                      beats[currentBeatIndex].time
+                    : currentBeatIndex > 0
+                        ? Mathf.Min(CadenceSequenceMaxGap,
+                            beats[currentBeatIndex].time -
+                            beats[currentBeatIndex - 1].time)
+                        : 0f;
                 foreach (GameActorData npc in game.npcs)
                 {
                     if (npc.eliminated || !npc.online) continue;
-                    BeginAction(npc, action, now);
+                    ScheduleNpcSequenceAction(
+                        npc, action, now, actionInterval);
                     npc.nextDecisionAt = sequenceContinues
                         ? now + Mathf.Max(0f,
                             beats[nextBeatIndex].time - game.musicTime) +
@@ -749,6 +788,32 @@ namespace FrogCamp.Networking
             actor.jumpX = actor.jumpY = 0f;
             actor.actionUntil = 0f;
             actor.actionResolved = false;
+        }
+
+        private static void ScheduleNpcSequenceAction(
+            GameActorData npc, string action, float now,
+            float actionInterval, bool emitSound = true)
+        {
+            float maxDelay = Mathf.Max(0f, actionInterval) *
+                             NpcSequenceTimingErrorRatio;
+            npc.pendingSequenceAction = action;
+            npc.pendingSequenceActionAt =
+                now + Random.Range(0f, maxDelay);
+            npc.pendingSequenceActionEmitSound = emitSound;
+        }
+
+        private static void StartPendingNpcSequenceAction(
+            GameActorData npc, float now)
+        {
+            if (string.IsNullOrEmpty(npc.pendingSequenceAction) ||
+                now < npc.pendingSequenceActionAt)
+                return;
+            string action = npc.pendingSequenceAction;
+            bool emitSound = npc.pendingSequenceActionEmitSound;
+            npc.pendingSequenceAction = null;
+            npc.pendingSequenceActionAt = 0f;
+            npc.pendingSequenceActionEmitSound = false;
+            BeginAction(npc, action, now, emitSound);
         }
 
         private static void ResolveOfficerTongue(GameStateData game, GameActorData officer, float now)
@@ -783,7 +848,19 @@ namespace FrogCamp.Networking
             {
                 EmitSound(officer, "tongueWrong");
                 BeginDeath(nearest, now);
-                officer.stunnedUntil = now + 5f;
+                officer.officerNpcMistakeCount++;
+                bool longStun = officer.officerNpcMistakeCount >
+                                WrongNpcKillsBeforeLongStun;
+                officer.stunnedUntil = now +
+                    (longStun
+                        ? LongWrongNpcStunDuration
+                        : WrongNpcStunDuration);
+                if (longStun)
+                {
+                    officer.officerNpcMistakeCount = 0;
+                    game.announcement = "打错太多，眩晕延长！";
+                    game.announcementId++;
+                }
                 officer.inputX = officer.inputY = 0f;
             }
             else

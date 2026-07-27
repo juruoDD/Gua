@@ -8,6 +8,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using FrogCamp.Tasks;
 using FrogCamp.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -241,12 +242,12 @@ namespace FrogCamp.Networking
                 reason = "所有玩家都需要选择身份";
                 return false;
             }
-            // 单人模式用于快速测试：军官或士兵（伪装者）都可独自开局。
-            // 多人模式仍维持“且只能有一名军官”的正式规则。
-            if (room.players.Count > 1 &&
-                room.players.Count(player => player.role == "officer") != 1)
+            // 允许全员选择士兵进入测试局；没有玩家军官时会自动生成测试军官 NPC。
+            // 玩家军官仍然最多只能有一名。
+            if (room.players.Count(
+                    player => player.role == "officer") > 1)
             {
-                reason = "房间需要且只能有 1 名军官";
+                reason = "玩家军官最多只能有 1 名";
                 return false;
             }
             if (room.players.Any(player => !player.ready))
@@ -300,6 +301,19 @@ namespace FrogCamp.Networking
                     type = "taskProgress",
                     taskProgress = progress
                 });
+        }
+
+        public void RequestCompleteTask(string taskId)
+        {
+            if (CurrentRoom?.game == null ||
+                string.IsNullOrEmpty(taskId))
+                return;
+            if (IsHost)
+                TaskPanelController.Instance
+                    ?.CompleteTaskAsHost(taskId);
+            else
+                SendClient(new LanMessage
+                    { type = "taskComplete", taskId = taskId });
         }
 
         public void LeaveRoom()
@@ -536,6 +550,9 @@ namespace FrogCamp.Networking
                     message.taskProgress);
                 BroadcastState();
             }
+            else if (message.type == "taskComplete")
+                TaskPanelController.Instance
+                    ?.CompleteTaskAsHost(message.taskId);
             else if (message.type == "leave") RemovePeer(peer);
         }
 

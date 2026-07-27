@@ -47,6 +47,7 @@ namespace FrogCamp.UI
         private int lastAnnouncementId;
         private bool cadenceMusicStarted;
         private bool loadingSettlement;
+        private RectTransform announcementRect;
 
         private const string MasterVolumeKey = "FrogCamp.MasterVolume";
         private const string MusicVolumeKey = "FrogCamp.MusicVolume";
@@ -74,6 +75,7 @@ namespace FrogCamp.UI
             sfxVolumeSlider.onValueChanged.AddListener(OnVolumeChanged);
             LoadVolumeSettings();
             settingsPanel.gameObject.SetActive(false);
+            announcementRect = announcementText.rectTransform;
             announcementText.gameObject.SetActive(false);
             if (cadenceMusicSource != null)
             {
@@ -247,12 +249,50 @@ namespace FrogCamp.UI
             foreach (FrogActorView view in actorViews.Values.OrderBy(view => view.SortY))
                 view.transform.SetAsLastSibling();
 
+            if (announcementText.gameObject.activeSelf)
+                PositionAnnouncementAboveOfficer(room.game);
+
             if (room.game.announcementId != lastAnnouncementId)
             {
                 lastAnnouncementId = room.game.announcementId;
                 StopAllCoroutines();
+                PositionAnnouncementAboveOfficer(room.game);
                 StartCoroutine(ShowAnnouncement(room.game.announcement));
             }
+        }
+
+        private void PositionAnnouncementAboveOfficer(GameStateData game)
+        {
+            if (announcementRect == null || game == null) return;
+            GameActorData officer = game.players.Concat(game.npcs)
+                .FirstOrDefault(actor =>
+                    actor.role == "officer" && actor.online &&
+                    !actor.eliminated);
+            if (officer == null) return;
+
+            FrogActorView view;
+            if (!actorViews.TryGetValue(officer.id, out view)) return;
+            RectTransform parent = announcementRect.parent as RectTransform;
+            RectTransform officerRect = view.transform as RectTransform;
+            if (parent == null || officerRect == null) return;
+
+            Vector2 localPosition = parent.InverseTransformPoint(
+                officerRect.position);
+            Rect bounds = parent.rect;
+            const float width = 560f;
+            const float height = 64f;
+            localPosition.x = Mathf.Clamp(localPosition.x,
+                bounds.xMin + width * 0.5f,
+                bounds.xMax - width * 0.5f);
+            localPosition.y = Mathf.Clamp(localPosition.y + 86f,
+                bounds.yMin + height * 0.5f,
+                bounds.yMax - height * 0.5f);
+
+            announcementRect.anchorMin = new Vector2(0.5f, 0.5f);
+            announcementRect.anchorMax = new Vector2(0.5f, 0.5f);
+            announcementRect.anchoredPosition = localPosition;
+            announcementRect.sizeDelta = new Vector2(width, height);
+            announcementRect.SetAsLastSibling();
         }
 
         private void SyncActorSound(GameActorData actor)
@@ -444,7 +484,7 @@ namespace FrogCamp.UI
                 RectTransform root = CampUiFactory.Panel(trackRect,
                     "CommandSlot" + (index + 1),
                     new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                    new Vector2(-43f, -28f), new Vector2(43f, 28f),
+                    new Vector2(-75f, -75f), new Vector2(75f, 75f),
                     CampUiFactory.Leaf, true);
                 roots[index] = root;
                 images[index] = root.GetComponent<Image>();

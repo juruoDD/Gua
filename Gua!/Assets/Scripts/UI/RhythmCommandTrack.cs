@@ -16,7 +16,7 @@ namespace FrogCamp.UI
         [SerializeField] private TaikoHitEffectGraphic hitEffect;
         [SerializeField] private RectTransform judgementRoot;
         [SerializeField] private Text judgementText;
-        [SerializeField, Range(1.5f, 5f)] private float leadTime = 3f;
+        [SerializeField, Range(1.5f, 10f)] private float leadTime = 8.4f;
         [SerializeField, Range(0.1f, 0.5f)] private float passWindow = 0.24f;
         [SerializeField, Range(20f, 80f)]
         private float noteLineOffset = 60f;
