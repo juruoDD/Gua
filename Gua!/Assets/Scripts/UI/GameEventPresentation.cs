@@ -431,9 +431,8 @@ namespace FrogCamp.UI
             helper.AddUIVertexTriangleStream(vertices);
         }
 
-        protected override void OnValidate()
+        private void OnValidate()
         {
-            base.OnValidate();
             if (graphic != null) graphic.SetVerticesDirty();
         }
     }
