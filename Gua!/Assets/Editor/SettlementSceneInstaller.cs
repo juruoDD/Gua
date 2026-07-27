@@ -66,8 +66,10 @@ namespace FrogCamp.Editor
                 AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Frog/敬礼.png");
             serialized.FindProperty("greenDeath").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Frog/绿色死亡.png");
-            serialized.FindProperty("pinkFallback").objectReferenceValue =
-                AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Frog/粉色待机.png");
+            serialized.FindProperty("pinkSalute").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Frog/粉色敬礼.png");
+            serialized.FindProperty("pinkDeath").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Frog/粉色死亡.png");
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             EnsureSceneInBuildSettings();

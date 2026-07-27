@@ -4391,9 +4391,9 @@ MonoBehaviour:
     croak: {fileID: 2800000, guid: 82a416d9f3405214989c397b132aaefb, type: 3}
     tongue: {fileID: 2800000, guid: 4d2002506b4efe4408dedd273bc91111, type: 3}
     whistle: {fileID: 2800000, guid: 3fbaad44e2da3ff4388af9ab0ea50efc, type: 3}
-    salute: {fileID: 0}
+    salute: {fileID: 2800000, guid: 78f76f0b159b4e6aa1ed68ad68cf142e, type: 3}
     stun: {fileID: 2800000, guid: 5692f6f66e2bcc447af4710ac097e2b6, type: 3}
-    death: {fileID: 0}
+    death: {fileID: 2800000, guid: d7416310a7aa4c44b1978aff66273f36, type: 3}
   cadenceMusic: {fileID: 8300000, guid: 0bdceaa51e983d94780bd8b4b1f483a1, type: 3}
   frogSound: {fileID: 8300000, guid: b0b180cd1d5d76048b920b21acc7faf8, type: 3}
   tongueCastSound: {fileID: 8300000, guid: 6ba686d99fe6d9a438a837b43a905dd4, type: 3}

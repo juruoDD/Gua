@@ -11,7 +11,9 @@ namespace FrogCamp.Gameplay
         private FrogGraphic graphic;
         private FrogShadowGraphic shadow;
         private RawImage frameImage;
+        private SoftSilhouetteShadow frameSilhouetteShadow;
         private FrogAnimationSet animations;
+        private bool officer;
         private Vector2 targetPosition;
         private int actionId = -1;
         private float localActionStart;
@@ -59,6 +61,7 @@ namespace FrogCamp.Gameplay
             visualObject.GetComponent<SoftSilhouetteShadow>()
                 .Configure(bodyShadowColor, 2.6f);
             view.animations = actor.role == "officer" ? pinkAnimations : greenAnimations;
+            view.officer = actor.role == "officer";
             if (view.animations != null)
             {
                 GameObject frameObject = new GameObject("FrogFrameAnimation",
@@ -70,8 +73,9 @@ namespace FrogCamp.Gameplay
                 frameRect.sizeDelta = new Vector2(82f, 82f);
                 view.frameImage = frameObject.GetComponent<RawImage>();
                 view.frameImage.raycastTarget = false;
-                frameObject.GetComponent<SoftSilhouetteShadow>()
-                    .Configure(bodyShadowColor, 2.6f);
+                view.frameSilhouetteShadow =
+                    frameObject.GetComponent<SoftSilhouetteShadow>();
+                view.frameSilhouetteShadow.Configure(bodyShadowColor, 2.6f);
             }
             view.ActorId = actor.id;
             view.Apply(actor, true);
@@ -153,6 +157,9 @@ namespace FrogCamp.Gameplay
                 {
                     string state = useActionFrames ? specialState :
                         (useHopFrames ? "hop" : "idle");
+                    if (frameSilhouetteShadow != null)
+                        frameSilhouetteShadow.enabled =
+                            !(officer && (state == "salute" || state == "death"));
                     int frameCount = FrogAnimationSet.GetFrameCount(state);
                     int frame;
                     if (state == "death")
@@ -172,8 +179,8 @@ namespace FrogCamp.Gameplay
                     }
                     frameImage.texture = useActionFrames ? actionTexture :
                         (useHopFrames ? animations.Hop : animations.Idle);
-                    frameImage.uvRect = new Rect(frame / (float)frameCount, 0f,
-                        1f / frameCount, 1f);
+                    frameImage.uvRect = FrogAnimationSet.GetFrameUv(
+                        state, actionTexture, frame, frameCount);
                     RectTransform frameRect = (RectTransform)frameImage.transform;
                     bool tallFrame = useHopFrames || useActionFrames;
                     frameRect.sizeDelta = tallFrame

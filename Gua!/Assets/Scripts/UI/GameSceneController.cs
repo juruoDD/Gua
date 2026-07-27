@@ -125,6 +125,9 @@ namespace FrogCamp.UI
                 LoadFrogTexture("粉色张嘴"), LoadFrogTexture("粉色吐舌"),
                 LoadFrogTexture("粉色吹哨"), null,
                 LoadFrogTexture("粉色晕眩"), null);
+            pinkAnimations.SetSaluteAndDeath(
+                LoadFrogTexture("\u7c89\u8272\u656c\u793c"),
+                LoadFrogTexture("\u7c89\u8272\u6b7b\u4ea1"));
             RefreshAudioAssetsForEditor();
             cadenceMusicSource = GetComponent<AudioSource>();
             if (cadenceMusicSource == null)

@@ -25,6 +25,13 @@ namespace FrogCamp.Gameplay
         public Texture2D Stun { get { return stun; } }
         public Texture2D Death { get { return death; } }
 
+        public void SetSaluteAndDeath(Texture2D saluteTexture,
+            Texture2D deathTexture)
+        {
+            salute = saluteTexture;
+            death = deathTexture;
+        }
+
         public void SetTextures(Texture2D idleTexture, Texture2D hopTexture,
             Texture2D jumpTexture, Texture2D armLeftTexture, Texture2D armRightTexture,
             Texture2D legLeftTexture, Texture2D legRightTexture,
@@ -110,6 +117,22 @@ namespace FrogCamp.Gameplay
                 default:
                     return new Vector2(0f, tallFrameY);
             }
+        }
+
+        public static Rect GetFrameUv(string state, Texture2D texture,
+            int frame, int frameCount)
+        {
+            // This sheet has a four-pixel transparent export margin.
+            if (state == "death" && texture != null &&
+                texture.width == 776 && texture.height == 264)
+            {
+                return new Rect((4f + frame * 128f) / texture.width,
+                    4f / texture.height, 128f / texture.width,
+                    256f / texture.height);
+            }
+
+            return new Rect(frame / (float)frameCount, 0f,
+                1f / frameCount, 1f);
         }
     }
 }

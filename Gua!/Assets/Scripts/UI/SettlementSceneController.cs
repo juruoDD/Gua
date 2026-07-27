@@ -17,7 +17,8 @@ namespace FrogCamp.UI
         [SerializeField] private Button backButton;
         [SerializeField] private Texture2D greenSalute;
         [SerializeField] private Texture2D greenDeath;
-        [SerializeField] private Texture2D pinkFallback;
+        [SerializeField] private Texture2D pinkSalute;
+        [SerializeField] private Texture2D pinkDeath;
         [SerializeField] private Color victoryTextColor =
             new Color32(255, 205, 62, 255);
         [SerializeField] private Color defeatTextColor =
@@ -74,22 +75,34 @@ namespace FrogCamp.UI
         private void ConfigureFrog(int index, string role, bool won)
         {
             bool officer = role == "officer";
-            Texture2D texture = officer ? pinkFallback
-                : won ? greenSalute : greenDeath;
-            int frameCount = officer ? 6 : won ? 8 : 6;
-            Vector2 size = officer
-                ? new Vector2(132f, 132f) : new Vector2(132f, 264f);
-            Vector2 position = officer
-                ? new Vector2(0f, 55f) : new Vector2(0f, 118f);
+            Texture2D texture = officer
+                ? (won ? pinkSalute : pinkDeath)
+                : (won ? greenSalute : greenDeath);
+            int frameCount = won ? 8 : 6;
+            Vector2 size = new Vector2(132f, 264f);
+            Vector2 position = new Vector2(0f, 118f);
 
             RawImage image = frogImages[index];
             image.enabled = true;
+            FrogCamp.Gameplay.SoftSilhouetteShadow silhouetteShadow =
+                image.GetComponent<FrogCamp.Gameplay.SoftSilhouetteShadow>();
+            if (!officer && silhouetteShadow == null)
+                silhouetteShadow =
+                    image.gameObject.AddComponent<
+                        FrogCamp.Gameplay.SoftSilhouetteShadow>();
+            if (silhouetteShadow != null)
+            {
+                silhouetteShadow.enabled = !officer;
+                if (!officer)
+                    silhouetteShadow.Configure(
+                        new Color(0.07f, 0.18f, 0.16f, 0.24f), 2.6f);
+            }
             RectTransform rect = image.rectTransform;
             rect.anchoredPosition = position;
             rect.sizeDelta = size;
             image.texture = texture;
-            animatedFrogs.Add(new AnimatedResultFrog(image, frameCount,
-                !officer, Time.unscaledTime));
+            animatedFrogs.Add(new AnimatedResultFrog(image, texture,
+                won ? "salute" : "death", frameCount, Time.unscaledTime));
         }
 
         private void ReturnToStart()
@@ -101,16 +114,18 @@ namespace FrogCamp.UI
         private sealed class AnimatedResultFrog
         {
             private readonly RawImage image;
+            private readonly Texture2D texture;
+            private readonly string state;
             private readonly int frameCount;
-            private readonly bool oneShot;
             private readonly float startedAt;
 
-            public AnimatedResultFrog(RawImage image, int frameCount,
-                bool oneShot, float startedAt)
+            public AnimatedResultFrog(RawImage image, Texture2D texture,
+                string state, int frameCount, float startedAt)
             {
                 this.image = image;
+                this.texture = texture;
+                this.state = state;
                 this.frameCount = frameCount;
-                this.oneShot = oneShot;
                 this.startedAt = startedAt;
             }
 
@@ -118,11 +133,9 @@ namespace FrogCamp.UI
             {
                 int elapsedFrame = Mathf.FloorToInt(
                     Mathf.Max(0f, time - startedAt) * 8f);
-                int frame = oneShot
-                    ? Mathf.Min(frameCount - 1, elapsedFrame)
-                    : elapsedFrame % frameCount;
-                image.uvRect = new Rect(frame / (float)frameCount, 0f,
-                    1f / frameCount, 1f);
+                int frame = Mathf.Min(frameCount - 1, elapsedFrame);
+                image.uvRect = FrogCamp.Gameplay.FrogAnimationSet.GetFrameUv(
+                    state, texture, frame, frameCount);
             }
         }
     }
