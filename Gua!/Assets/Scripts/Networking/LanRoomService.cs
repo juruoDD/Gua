@@ -283,6 +283,25 @@ namespace FrogCamp.Networking
                 SendClient(new LanMessage { type = "action", action = action });
         }
 
+        public void ReportTaskProgress(int progress)
+        {
+            if (CurrentRoom == null || !CurrentRoom.inGame ||
+                CurrentRoom.game == null)
+                return;
+            if (IsHost)
+            {
+                GameSimulation.SetTaskProgress(CurrentRoom.game,
+                    LocalPlayerId, progress);
+                BroadcastState();
+            }
+            else
+                SendClient(new LanMessage
+                {
+                    type = "taskProgress",
+                    taskProgress = progress
+                });
+        }
+
         public void LeaveRoom()
         {
             if (clientWriter != null)
@@ -511,6 +530,12 @@ namespace FrogCamp.Networking
             else if (message.type == "action")
                 GameSimulation.StartAction(CurrentRoom.game, peer.PlayerId,
                     message.action, Time.realtimeSinceStartup);
+            else if (message.type == "taskProgress")
+            {
+                GameSimulation.SetTaskProgress(CurrentRoom.game, peer.PlayerId,
+                    message.taskProgress);
+                BroadcastState();
+            }
             else if (message.type == "leave") RemovePeer(peer);
         }
 

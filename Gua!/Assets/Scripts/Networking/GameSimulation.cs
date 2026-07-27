@@ -169,7 +169,7 @@ namespace FrogCamp.Networking
 
         public static void Tick(GameStateData game, float deltaTime, float now)
         {
-            if (game == null) return;
+            if (game == null || game.ended) return;
             bool danceSequenceActive = IsDanceSequenceActive(game);
             if (danceSequenceActive)
                 AdvanceDanceSequence(game, deltaTime, now);
@@ -212,6 +212,8 @@ namespace FrogCamp.Networking
                 else actor.moving = false;
                 ResolveOfficerTongue(game, actor, now);
             }
+            EvaluateWinner(game);
+            if (game.ended) return;
             GameActorData[] npcs = game.npcs.ToArray();
             for (int npcIndex = 0; npcIndex < npcs.Length; npcIndex++)
             {
@@ -256,6 +258,46 @@ namespace FrogCamp.Networking
                 if (!npc.moving && (npc.inputX != 0f || npc.inputY != 0f))
                     npc.nextDecisionAt = now;
             }
+        }
+
+        public static void SetTaskProgress(GameStateData game, string id, int progress)
+        {
+            GameActorData actor = FindPlayer(game, id);
+            if (actor == null || actor.role != "disguiser" ||
+                actor.eliminated || game.ended)
+                return;
+            actor.taskProgress = Mathf.Max(actor.taskProgress,
+                Mathf.Clamp(progress, 0, 100));
+            EvaluateWinner(game);
+        }
+
+        private static void EvaluateWinner(GameStateData game)
+        {
+            if (game == null || game.ended) return;
+            List<GameActorData> disguisers = game.players
+                .Where(actor => actor.role == "disguiser").ToList();
+            if (disguisers.Any(actor => actor.taskProgress >= 100))
+            {
+                EndGame(game, "disguiser");
+                return;
+            }
+            if (disguisers.Count > 0 &&
+                disguisers.All(actor => actor.eliminated))
+                EndGame(game, "officer");
+        }
+
+        private static void EndGame(GameStateData game, string winnerRole)
+        {
+            game.ended = true;
+            game.winnerRole = winnerRole;
+            foreach (GameActorData actor in game.players)
+            {
+                actor.inputX = actor.inputY = 0f;
+                actor.moving = false;
+            }
+            game.announcement = winnerRole == "officer"
+                ? "军官蛙获胜" : "伪装蛙获胜";
+            game.announcementId++;
         }
 
         private static void WrapCadenceMusic(GameStateData game)

@@ -35,6 +35,7 @@ namespace FrogCamp.Networking
         public RoomStateData room;
         public float inputX;
         public float inputY;
+        public int taskProgress;
         public string action;
     }
 
@@ -52,6 +53,8 @@ namespace FrogCamp.Networking
         public float specialMusicTime;
         public int nextDanceBeat;
         public List<string> danceCommands = new List<string>();
+        public bool ended;
+        public string winnerRole;
     }
 
     [Serializable]
@@ -65,6 +68,7 @@ namespace FrogCamp.Networking
         public bool eliminated;
         public bool moving;
         public bool stunned;
+        public int taskProgress;
         public float x;
         public float y;
         public float inputX;

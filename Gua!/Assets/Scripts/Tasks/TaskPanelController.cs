@@ -116,11 +116,19 @@ namespace FrogCamp.Tasks
         {
             if (taskPool == null) return false;
             TaskDefinition task = taskPool.ActiveTasks.FirstOrDefault(item => item.id == taskId);
+            int completedIndex = taskPool.ActiveTasks
+                .TakeWhile(item => item.id != taskId).Count();
             if (task == null || !taskPool.Complete(taskId)) return false;
 
+            Transform completedRow = taskList != null &&
+                                     completedIndex < taskList.childCount
+                ? taskList.GetChild(completedIndex)
+                : null;
+            TaskCompletionFeedback.Play(completedRow);
             RefreshPanel();
             TaskCompleted?.Invoke(task);
             ProgressChanged?.Invoke(taskPool.ProgressPercent);
+            LanRoomService.Instance.ReportTaskProgress(taskPool.ProgressPercent);
             return true;
         }
 

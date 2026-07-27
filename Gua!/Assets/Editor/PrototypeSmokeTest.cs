@@ -9,8 +9,8 @@ namespace FrogCamp.Editor
     {
         static PrototypeSmokeTest()
         {
-            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV10", false)) return;
-            SessionState.SetBool("FrogCamp.PrototypeSmokeV10", true);
+            if (SessionState.GetBool("FrogCamp.PrototypeSmokeV11", false)) return;
+            SessionState.SetBool("FrogCamp.PrototypeSmokeV11", true);
             EditorApplication.delayCall += Run;
         }
 
@@ -131,7 +131,22 @@ namespace FrogCamp.Editor
                     item.action != "moveLeft" || item.actionFacing != "left"))
                 throw new System.Exception("音乐循环后 NPC 动作没有与循环起点同步。");
 
-            Debug.Log("原型冒烟测试通过：粉色军官眩晕、绿色死亡尸体保留、音乐循环与 NPC 拍点同步均正常。");
+            GameStateData taskWinGame = GameSimulation.Create(room, 20f);
+            GameSimulation.SetTaskProgress(taskWinGame, "officer", 100);
+            if (taskWinGame.ended)
+                throw new System.Exception("军官任务进度错误触发了游戏结束。");
+            GameSimulation.SetTaskProgress(taskWinGame, "spy", 100);
+            if (!taskWinGame.ended || taskWinGame.winnerRole != "disguiser")
+                throw new System.Exception("伪装蛙任务进度达到 100% 后没有获胜。");
+
+            GameStateData officerWinGame = GameSimulation.Create(room, 30f);
+            officerWinGame.players[1].eliminated = true;
+            GameSimulation.Tick(officerWinGame, .05f, 30.05f);
+            if (!officerWinGame.ended ||
+                officerWinGame.winnerRole != "officer")
+                throw new System.Exception("全部伪装蛙被消灭后军官没有获胜。");
+
+            Debug.Log("原型冒烟测试通过：结算胜负、角色动画、音乐循环与 NPC 拍点同步均正常。");
         }
     }
 }

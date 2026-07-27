@@ -46,6 +46,7 @@ namespace FrogCamp.UI
         private float nextInputTime;
         private int lastAnnouncementId;
         private bool cadenceMusicStarted;
+        private bool loadingSettlement;
 
         private const string MasterVolumeKey = "FrogCamp.MasterVolume";
         private const string MusicVolumeKey = "FrogCamp.MusicVolume";
@@ -93,6 +94,18 @@ namespace FrogCamp.UI
         {
             HandleInput();
             RefreshActors();
+            CheckForGameEnd();
+        }
+
+        private void CheckForGameEnd()
+        {
+            if (loadingSettlement) return;
+            RoomStateData room = LanRoomService.Instance.CurrentRoom;
+            if (room == null || room.game == null || !room.game.ended) return;
+            loadingSettlement = true;
+            if (cadenceMusicSource != null) cadenceMusicSource.Stop();
+            if (sfxSource != null) sfxSource.Stop();
+            SceneTransitionOverlay.LoadScene(CampScenes.Settlement);
         }
 
         public void BuildLayoutForEditor()
