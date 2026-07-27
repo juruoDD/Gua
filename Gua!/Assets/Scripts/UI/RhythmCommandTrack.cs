@@ -32,12 +32,6 @@ namespace FrogCamp.UI
             "salute", "croak"
         };
 
-        private static readonly string[] Labels =
-        {
-            "左手", "右手", "左脚", "右脚",
-            "上", "下", "左", "右", "敬礼", "呱"
-        };
-
         private Sprite[] fallbackSprites;
         private Vector3[] slotBaseScales;
         private Vector3 targetBaseScale = Vector3.one;
@@ -248,12 +242,8 @@ namespace FrogCamp.UI
                 noteLabels[slot] != null)
             {
                 Text label = noteLabels[slot];
-                label.text = Labels[kind];
-                Color labelColor = Color.Lerp(
-                    CampUiFactory.White,
-                    CampUiFactory.Hex("#FFF19B"), hit);
-                labelColor.a *= passedFade;
-                label.color = labelColor;
+                label.text = string.Empty;
+                label.gameObject.SetActive(false);
             }
         }
 

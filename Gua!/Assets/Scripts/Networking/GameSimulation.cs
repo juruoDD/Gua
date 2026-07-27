@@ -166,7 +166,7 @@ namespace FrogCamp.Networking
             if (action == "whistle" && actor.role == "officer" &&
                 !IsOnCentralLily(actor))
             {
-                game.announcement = "军官必须站在中央空地才能吹哨";
+                game.announcement = "军官只能在集合旗帜下吹哨";
                 game.announcementId++;
                 return;
             }
