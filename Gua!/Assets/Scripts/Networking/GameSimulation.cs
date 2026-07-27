@@ -28,6 +28,21 @@ namespace FrogCamp.Networking
         public const int NpcCount = 20;
         public const float AnimationSpeedMultiplier = 1.25f;
         public const float LimbAnimationExtraSpeed = 1.35f;
+        public const string PhaseRules = "rules";
+        public const string PhaseTrialIntro = "trialIntro";
+        public const string PhaseTrialCountdown = "trialCountdown";
+        public const string PhaseTrial = "trial";
+        public const string PhaseTrialEnd = "trialEnd";
+        public const string PhaseFormalIntro = "formalIntro";
+        public const string PhaseFormalCountdown = "formalCountdown";
+        public const string PhaseFormal = "formal";
+        public const float RulesDuration = 25f;
+        public const float TrialIntroDuration = 1.8f;
+        public const float TrialDuration = 30f;
+        public const float TrialEndDuration = 2.6f;
+        public const float FormalIntroDuration = 1.8f;
+        public const float ReadyCountdownDuration = 3f;
+        public const float TrialRespawnDelay = 2f;
         public const string DancePhaseWhistle = "whistle";
         public const string DancePhaseBell = "bell";
         public const string DancePhaseMusic = "dance";
@@ -100,7 +115,12 @@ namespace FrogCamp.Networking
 
         public static GameStateData Create(RoomStateData room, float now)
         {
-            GameStateData game = new GameStateData();
+            GameStateData game = new GameStateData
+            {
+                phase = PhaseRules,
+                phaseRemaining = RulesDuration,
+                phaseVersion = 1
+            };
             bool needsTestOfficer =
                 !room.players.Any(player => player.role == "officer");
             foreach (RoomPlayerData player in room.players)
@@ -130,6 +150,7 @@ namespace FrogCamp.Networking
 
         public static void SetInput(GameStateData game, string id, float x, float y)
         {
+            if (!IsInteractivePhase(game)) return;
             GameActorData actor = FindPlayer(game, id);
             if (!CanControl(actor)) return;
             if (actor.role == "officer" && IsOfficerLockedForDance(game))
@@ -151,6 +172,7 @@ namespace FrogCamp.Networking
 
         public static void StartAction(GameStateData game, string id, string action, float now)
         {
+            if (!IsInteractivePhase(game)) return;
             GameActorData actor = FindPlayer(game, id);
             if (!CanControl(actor) || !string.IsNullOrEmpty(actor.action)) return;
             if (actor.role == "officer" && IsOfficerLockedForDance(game)) return;
@@ -184,6 +206,29 @@ namespace FrogCamp.Networking
         public static void Tick(GameStateData game, float deltaTime, float now)
         {
             if (game == null || game.ended) return;
+            if (game.phase == PhaseRules && !game.tutorialStarted)
+            {
+                FreezeActors(game);
+                return;
+            }
+            if (!IsInteractivePhase(game))
+            {
+                AdvancePhase(game, deltaTime, now);
+                FreezeActors(game);
+                return;
+            }
+            if (game.phase == PhaseTrial)
+            {
+                game.phaseRemaining =
+                    Mathf.Max(0f, game.phaseRemaining - deltaTime);
+                if (game.phaseRemaining <= 0f)
+                {
+                    BeginPhase(game, PhaseTrialEnd, TrialEndDuration);
+                    FreezeActors(game);
+                    return;
+                }
+                RespawnTrialActors(game, now);
+            }
             bool danceSequenceActive = IsDanceSequenceActive(game);
             if (danceSequenceActive)
                 AdvanceDanceSequence(game, deltaTime, now);
@@ -226,7 +271,7 @@ namespace FrogCamp.Networking
                 else actor.moving = false;
                 ResolveOfficerTongue(game, actor, now);
             }
-            EvaluateWinner(game);
+            if (game.phase == PhaseFormal) EvaluateWinner(game);
             if (game.ended) return;
             GameActorData[] npcs = game.npcs.ToArray();
             for (int npcIndex = 0; npcIndex < npcs.Length; npcIndex++)
@@ -273,14 +318,161 @@ namespace FrogCamp.Networking
                 if (!npc.moving && (npc.inputX != 0f || npc.inputY != 0f))
                     npc.nextDecisionAt = now;
             }
-            EvaluateWinner(game);
+            if (game.phase == PhaseFormal) EvaluateWinner(game);
+        }
+
+        public static void BeginTutorialRules(GameStateData game)
+        {
+            if (game == null || game.tutorialStarted) return;
+            game.tutorialStarted = true;
+            game.phase = PhaseRules;
+            game.phaseRemaining = RulesDuration;
+            game.countdownRemaining = 0f;
+            game.phaseVersion++;
+        }
+
+        public static bool IsInteractivePhase(GameStateData game)
+        {
+            return game != null && !game.ended &&
+                   (game.phase == PhaseTrial ||
+                    game.phase == PhaseFormal);
+        }
+
+        private static void AdvancePhase(
+            GameStateData game, float deltaTime, float now)
+        {
+            if (game.phase == PhaseTrialCountdown ||
+                game.phase == PhaseFormalCountdown)
+            {
+                game.countdownRemaining =
+                    Mathf.Max(0f, game.countdownRemaining - deltaTime);
+                if (game.countdownRemaining > 0f) return;
+                BeginPhase(game,
+                    game.phase == PhaseTrialCountdown
+                        ? PhaseTrial : PhaseFormal,
+                    game.phase == PhaseTrialCountdown
+                        ? TrialDuration : 0f);
+                return;
+            }
+
+            game.phaseRemaining =
+                Mathf.Max(0f, game.phaseRemaining - deltaTime);
+            if (game.phaseRemaining > 0f) return;
+            switch (game.phase)
+            {
+                case PhaseRules:
+                    BeginPhase(game, PhaseTrialIntro, TrialIntroDuration);
+                    break;
+                case PhaseTrialIntro:
+                    BeginCountdown(game, PhaseTrialCountdown);
+                    break;
+                case PhaseTrialEnd:
+                    ResetForFormalGame(game, now);
+                    BeginPhase(game, PhaseFormalIntro, FormalIntroDuration);
+                    break;
+                case PhaseFormalIntro:
+                    BeginCountdown(game, PhaseFormalCountdown);
+                    break;
+                default:
+                    BeginPhase(game, PhaseRules, RulesDuration);
+                    break;
+            }
+        }
+
+        private static void BeginCountdown(
+            GameStateData game, string phase)
+        {
+            BeginPhase(game, phase, ReadyCountdownDuration);
+            game.countdownRemaining = ReadyCountdownDuration;
+        }
+
+        private static void BeginPhase(
+            GameStateData game, string phase, float duration)
+        {
+            game.phase = phase;
+            game.phaseRemaining = duration;
+            game.countdownRemaining = 0f;
+            game.phaseVersion++;
+        }
+
+        private static void FreezeActors(GameStateData game)
+        {
+            foreach (GameActorData actor in game.players.Concat(game.npcs))
+            {
+                actor.inputX = actor.inputY = 0f;
+                actor.moving = false;
+            }
+        }
+
+        private static void RespawnTrialActors(
+            GameStateData game, float now)
+        {
+            List<GameActorData> actors =
+                game.players.Concat(game.npcs).ToList();
+            foreach (GameActorData actor in actors)
+            {
+                if (!actor.eliminated || actor.trialRespawnAt <= 0f ||
+                    now < actor.trialRespawnAt)
+                    continue;
+                actor.eliminated = false;
+                actor.action = null;
+                actor.actionFacing = null;
+                actor.actionResolved = false;
+                actor.trialRespawnAt = 0f;
+                actor.stunned = false;
+                actor.stunnedUntil = 0f;
+                PlaceActor(actor, actors);
+            }
+        }
+
+        private static void ResetForFormalGame(
+            GameStateData game, float now)
+        {
+            game.musicTime = 0f;
+            game.nextCadenceBeat = 0;
+            game.specialMusicPhase = null;
+            game.specialMusicTime = 0f;
+            game.nextDanceBeat = 0;
+            game.danceCommands.Clear();
+            game.announcement = null;
+            game.announcementId++;
+            int taskVersion = game.tasks == null ? 0 : game.tasks.version + 1;
+            game.tasks = new TaskStateData { version = taskVersion };
+
+            List<GameActorData> placed = new List<GameActorData>();
+            foreach (GameActorData actor in game.players.Concat(game.npcs))
+            {
+                actor.eliminated = false;
+                actor.moving = false;
+                actor.stunned = false;
+                actor.taskProgress = 0;
+                actor.inputX = actor.inputY = 0f;
+                actor.action = null;
+                actor.actionFacing = null;
+                actor.actionResolved = false;
+                actor.pendingSequenceAction = null;
+                actor.pendingSequenceActionAt = 0f;
+                actor.pendingSequenceActionEmitSound = false;
+                actor.jumpX = actor.jumpY = 0f;
+                actor.stunnedUntil = 0f;
+                actor.nextWhistleAt = 0f;
+                actor.officerNpcMistakeCount = 0;
+                actor.assemblySlot = -1;
+                actor.assemblyBlockedTime = 0f;
+                actor.trialRespawnAt = 0f;
+                actor.nextDecisionAt =
+                    now + Random.Range(0.25f, 1.5f);
+                PlaceActor(actor, placed);
+                placed.Add(actor);
+            }
         }
 
         public static void SetTaskProgress(GameStateData game, string id, int progress)
         {
             GameActorData actor = FindPlayer(game, id);
             if (actor == null || actor.role != "disguiser" ||
-                actor.eliminated || game.ended)
+                actor.eliminated || game.ended ||
+                game.phase != PhaseFormal)
                 return;
             actor.taskProgress = Mathf.Max(actor.taskProgress,
                 Mathf.Clamp(progress, 0, 100));
@@ -848,6 +1040,8 @@ namespace FrogCamp.Networking
             {
                 EmitSound(officer, "tongueWrong");
                 BeginDeath(nearest, now);
+                if (game.phase == PhaseTrial)
+                    nearest.trialRespawnAt = now + TrialRespawnDelay;
                 officer.officerNpcMistakeCount++;
                 bool longStun = officer.officerNpcMistakeCount >
                                 WrongNpcKillsBeforeLongStun;
@@ -867,6 +1061,8 @@ namespace FrogCamp.Networking
             {
                 EmitSound(officer, "tongueCorrect");
                 BeginDeath(nearest, now);
+                if (game.phase == PhaseTrial)
+                    nearest.trialRespawnAt = now + TrialRespawnDelay;
                 game.announcement = nearest.name + " 被消灭了";
                 game.announcementId++;
             }

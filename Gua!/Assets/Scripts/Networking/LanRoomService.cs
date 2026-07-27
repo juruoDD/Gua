@@ -217,7 +217,7 @@ namespace FrogCamp.Networking
             gameTickAccumulator = 0f;
             BroadcastState();
             SendToAll(new LanMessage { type = "start" });
-            SceneTransitionOverlay.LoadScene(CampScenes.Game);
+            SceneTransitionOverlay.LoadTutorialScene(CampScenes.Game);
         }
 
         public bool CanStart(out string reason)
@@ -263,6 +263,13 @@ namespace FrogCamp.Networking
         {
             if (CurrentRoom == null) return null;
             return CurrentRoom.players.FirstOrDefault(player => player.id == LocalPlayerId);
+        }
+
+        public void BeginTutorialRules()
+        {
+            if (!IsHost || CurrentRoom?.game == null) return;
+            GameSimulation.BeginTutorialRules(CurrentRoom.game);
+            BroadcastState();
         }
 
         public void SetGameInput(float x, float y)
@@ -575,7 +582,7 @@ namespace FrogCamp.Networking
             }
             else if (message.type == "start")
             {
-                SceneTransitionOverlay.LoadScene(CampScenes.Game);
+                SceneTransitionOverlay.LoadTutorialScene(CampScenes.Game);
             }
             else if (message.type == "error")
             {

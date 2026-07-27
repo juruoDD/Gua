@@ -77,6 +77,7 @@ namespace FrogCamp.Tasks
             uniqueLickedTargetsByPlayer =
                 new Dictionary<string, HashSet<string>>();
         private readonly List<GameObject> taskRows = new List<GameObject>();
+        private string lastObservedGamePhase;
 
         public int ProgressPercent => sharedProgressPercent;
         public IReadOnlyList<TaskDefinition> ActiveTasks =>
@@ -113,7 +114,17 @@ namespace FrogCamp.Tasks
 
         private void Update()
         {
+            GameStateData game =
+                LanRoomService.Instance.CurrentRoom?.game;
+            string phase = game == null ? null : game.phase;
+            if (phase != lastObservedGamePhase)
+            {
+                if (phase == GameSimulation.PhaseFormalIntro)
+                    ResetForFormalGame();
+                lastObservedGamePhase = phase;
+            }
             SyncSharedTaskState(false);
+            if (!GameSimulation.IsInteractivePhase(game)) return;
             UpdateReedTask();
             UpdateBirdNestTask();
             UpdateCabinetTask();
@@ -132,11 +143,32 @@ namespace FrogCamp.Tasks
         /// </summary>
         public bool CompleteTask(string taskId)
         {
+            GameStateData game =
+                LanRoomService.Instance.CurrentRoom?.game;
             if (string.IsNullOrEmpty(taskId) ||
+                !GameSimulation.IsInteractivePhase(game) ||
                 !sharedActiveTasks.Any(task => task.id == taskId))
                 return false;
             LanRoomService.Instance.RequestCompleteTask(taskId);
             return true;
+        }
+
+        private void ResetForFormalGame()
+        {
+            knownCompletedTaskIds.Clear();
+            lastTaskStateVersion = -1;
+            sharedActiveTasks.Clear();
+            sharedProgressPercent = 0;
+            sharedTasksFinished = false;
+            if (LanRoomService.Instance.IsHost)
+            {
+                taskPool = new TaskPool(LoadCatalog());
+                PublishHostTaskState();
+            }
+            else
+            {
+                RefreshPanel();
+            }
         }
 
         public bool CompleteTaskAsHost(string taskId)

@@ -29,7 +29,17 @@ namespace FrogCamp.UI
 
         private void Awake()
         {
-            backButton.onClick.AddListener(ReturnToStart);
+            if (backButton == null)
+                backButton = GetComponentInChildren<Button>(true);
+            if (backButton != null)
+            {
+                backButton.onClick.RemoveListener(ReturnToStart);
+                backButton.onClick.AddListener(ReturnToStart);
+            }
+            else
+            {
+                Debug.LogError("Settlement scene is missing its back button.");
+            }
             BuildResults();
         }
 
@@ -107,8 +117,21 @@ namespace FrogCamp.UI
 
         private void ReturnToStart()
         {
-            LanRoomService.Instance.LeaveRoom();
-            SceneTransitionOverlay.LoadScene(CampScenes.Start);
+            // Room cleanup notifies listeners and must never be allowed to
+            // prevent the navigation requested by this button.
+            try
+            {
+                if (LanRoomService.Instance != null)
+                    LanRoomService.Instance.LeaveRoom();
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogException(exception);
+            }
+            finally
+            {
+                SceneTransitionOverlay.LoadScene(CampScenes.Start);
+            }
         }
 
         private sealed class AnimatedResultFrog
@@ -133,7 +156,7 @@ namespace FrogCamp.UI
             {
                 int elapsedFrame = Mathf.FloorToInt(
                     Mathf.Max(0f, time - startedAt) * 8f);
-                int frame = Mathf.Min(frameCount - 1, elapsedFrame);
+                int frame = elapsedFrame % frameCount;
                 image.uvRect = FrogCamp.Gameplay.FrogAnimationSet.GetFrameUv(
                     state, texture, frame, frameCount);
             }

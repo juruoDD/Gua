@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FrogCamp.Gameplay;
 using FrogCamp.Networking;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -14,6 +15,55 @@ namespace FrogCamp.UI
         [SerializeField] private Text roomText;
         [SerializeField] private Text statusText;
         [SerializeField] private Text announcementText;
+        [SerializeField] private TMP_FontAsset eventDisplayFont;
+        [SerializeField] private GameEventPresentationSettings eventStyle =
+            new GameEventPresentationSettings();
+
+        [Header("新手教程 - 场景 UI")]
+        [SerializeField] private GameObject rulesOverlay;
+        [SerializeField] private TextMeshProUGUI tutorialRulesTitleText;
+        [SerializeField] private TextMeshProUGUI tutorialRulesBodyText;
+        [SerializeField] private TextMeshProUGUI tutorialRulesFooterText;
+        [SerializeField] private TextMeshProUGUI trialTimerText;
+
+        [Header("新手教程 - 规则文本")]
+        [SerializeField] private string tutorialRulesTitle = "新手规则";
+        [SerializeField, TextArea(3, 8)] private string tutorialRulesBody =
+            "先用 30 秒熟悉移动、动作、任务与抓捕\n" +
+            "试玩阶段不计胜负，结束后所有状态都会重置\n" +
+            "听到吹哨声后停止操作，准备进入正式游戏";
+        [SerializeField] private string tutorialRulesFooter =
+            "规则说明将在 {0} 秒后自动关闭";
+
+        [Header("新手教程 - 阶段大字")]
+        [SerializeField] private string trialIntroText = "30秒试玩";
+        [SerializeField] private string trialEndText = "试玩结束！";
+        [SerializeField] private string formalIntroText = "游戏预备";
+
+        [Header("新手教程 - 规则格式")]
+        [SerializeField] private Color tutorialBackgroundColor =
+            new Color(0.035f, 0.15f, 0.17f, 1f);
+        [SerializeField] private Color tutorialTitleColor =
+            new Color(1f, 0.84f, 0.28f, 1f);
+        [SerializeField] private Color tutorialBodyColor = Color.white;
+        [SerializeField] private Color tutorialFooterColor =
+            new Color(0.58f, 0.86f, 0.82f, 1f);
+        [SerializeField, Range(36f, 120f)]
+        private float tutorialTitleFontSize = 78f;
+        [SerializeField, Range(18f, 64f)]
+        private float tutorialBodyFontSize = 34f;
+        [SerializeField, Range(14f, 42f)]
+        private float tutorialFooterFontSize = 22f;
+
+        [Header("新手教程 - 试玩倒计时")]
+        [SerializeField] private Vector2 trialTimerPosition =
+            new Vector2(0f, -18f);
+        [SerializeField] private Vector2 trialTimerSize =
+            new Vector2(280f, 64f);
+        [SerializeField, Range(20f, 72f)]
+        private float trialTimerFontSize = 38f;
+        [SerializeField] private Color trialTimerColor =
+            new Color(1f, 0.86f, 0.28f, 1f);
         [SerializeField] private Button exitButton;
         [SerializeField] private FrogAnimationSet greenAnimations = new FrogAnimationSet();
         [SerializeField] private FrogAnimationSet pinkAnimations = new FrogAnimationSet();
@@ -48,6 +98,14 @@ namespace FrogCamp.UI
         private bool cadenceMusicStarted;
         private bool loadingSettlement;
         private RectTransform announcementRect;
+        private GameEventPresentation eventPresentation;
+        private readonly Dictionary<string, bool> playerEliminationStates =
+            new Dictionary<string, bool>();
+        private bool eventStateInitialized;
+        private int lastTaskProgress;
+        private Coroutine announcementRoutine;
+        private string lastPresentationPhase;
+        private string tutorialFooterTemplate;
 
         private const string MasterVolumeKey = "FrogCamp.MasterVolume";
         private const string MusicVolumeKey = "FrogCamp.MusicVolume";
@@ -77,6 +135,27 @@ namespace FrogCamp.UI
             settingsPanel.gameObject.SetActive(false);
             announcementRect = announcementText.rectTransform;
             announcementText.gameObject.SetActive(false);
+            Canvas canvas = actorLayer.GetComponentInParent<Canvas>();
+            RectTransform canvasRect = canvas == null
+                ? actorLayer.parent as RectTransform
+                : canvas.transform as RectTransform;
+            eventPresentation = canvasRect == null ? null :
+                canvasRect.GetComponentInChildren<
+                    GameEventPresentation>(true);
+            if (eventPresentation != null)
+                eventPresentation.Initialize(canvasRect);
+            else
+                eventPresentation = GameEventPresentation.Create(
+                    canvasRect,
+                    eventDisplayFont != null
+                        ? eventDisplayFont : TMP_Settings.defaultFontAsset,
+                    canvasRect, eventStyle);
+            if (eventPresentation != null)
+                eventStyle = eventPresentation.Settings;
+            BuildTutorialPresentation(canvasRect);
+            tutorialFooterTemplate = tutorialRulesFooterText != null
+                ? tutorialRulesFooterText.text : tutorialRulesFooter;
+            LanRoomService.Instance.BeginTutorialRules();
             if (cadenceMusicSource != null)
             {
                 cadenceMusicSource.playOnAwake = false;
@@ -90,6 +169,232 @@ namespace FrogCamp.UI
             if (bellSound == null || danceMusic == null)
                 Debug.LogError("未找到铃声或跳舞音乐资源。");
             musicWaveform.Configure(cadenceMusicSource);
+        }
+
+        private void BuildTutorialPresentation(RectTransform canvasRect)
+        {
+            if (canvasRect == null) return;
+            if (rulesOverlay == null)
+            {
+                Transform existing =
+                    canvasRect.Find("TutorialRulesOverlay");
+                if (existing != null)
+                    rulesOverlay = existing.gameObject;
+            }
+            if (rulesOverlay != null)
+            {
+                Transform title = rulesOverlay.transform.Find("RulesTitle");
+                Transform body = rulesOverlay.transform.Find("RulesBody");
+                Transform footer = rulesOverlay.transform.Find("RulesFooter");
+                if (tutorialRulesTitleText == null && title != null)
+                    tutorialRulesTitleText =
+                        title.GetComponent<TextMeshProUGUI>();
+                if (tutorialRulesBodyText == null && body != null)
+                    tutorialRulesBodyText =
+                        body.GetComponent<TextMeshProUGUI>();
+                if (tutorialRulesFooterText == null && footer != null)
+                    tutorialRulesFooterText =
+                        footer.GetComponent<TextMeshProUGUI>();
+            }
+            if (trialTimerText == null)
+            {
+                Transform existing = canvasRect.Find("TrialTimer");
+                if (existing != null)
+                    trialTimerText =
+                        existing.GetComponent<TextMeshProUGUI>();
+            }
+            if (rulesOverlay != null && trialTimerText != null) return;
+
+            TMP_FontAsset font = eventDisplayFont != null
+                ? eventDisplayFont : TMP_Settings.defaultFontAsset;
+
+            if (rulesOverlay == null)
+            {
+                rulesOverlay = new GameObject(
+                    "TutorialRulesOverlay", typeof(RectTransform),
+                    typeof(CanvasRenderer), typeof(Image));
+                RectTransform overlayRect =
+                    rulesOverlay.GetComponent<RectTransform>();
+                overlayRect.SetParent(canvasRect, false);
+                overlayRect.anchorMin = Vector2.zero;
+                overlayRect.anchorMax = Vector2.one;
+                overlayRect.offsetMin = overlayRect.offsetMax = Vector2.zero;
+                Image background = rulesOverlay.GetComponent<Image>();
+                background.color = tutorialBackgroundColor;
+                background.raycastTarget = true;
+
+                tutorialRulesTitleText = CreateTutorialText(
+                    overlayRect, "RulesTitle", tutorialRulesTitle,
+                    font, tutorialTitleFontSize, tutorialTitleColor,
+                    new Vector2(0.12f, 0.68f),
+                    new Vector2(0.88f, 0.86f), FontStyles.Bold);
+                tutorialRulesBodyText = CreateTutorialText(
+                    overlayRect, "RulesBody", tutorialRulesBody,
+                    font, tutorialBodyFontSize, tutorialBodyColor,
+                    new Vector2(0.12f, 0.28f),
+                    new Vector2(0.88f, 0.66f), FontStyles.Normal);
+                tutorialRulesBodyText.lineSpacing = 18f;
+                tutorialRulesFooterText = CreateTutorialText(
+                    overlayRect, "RulesFooter", tutorialRulesFooter,
+                    font, tutorialFooterFontSize, tutorialFooterColor,
+                    new Vector2(0.18f, 0.12f),
+                    new Vector2(0.82f, 0.22f), FontStyles.Normal);
+            }
+
+            if (trialTimerText == null)
+            {
+                GameObject timerObject = new GameObject(
+                    "TrialTimer", typeof(RectTransform),
+                    typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+                RectTransform timerRect =
+                    timerObject.GetComponent<RectTransform>();
+                timerRect.SetParent(canvasRect, false);
+                timerRect.anchorMin = timerRect.anchorMax =
+                    new Vector2(0.5f, 1f);
+                timerRect.pivot = new Vector2(0.5f, 1f);
+                timerRect.anchoredPosition = trialTimerPosition;
+                timerRect.sizeDelta = trialTimerSize;
+                trialTimerText =
+                    timerObject.GetComponent<TextMeshProUGUI>();
+                trialTimerText.font = font;
+                trialTimerText.fontSize = trialTimerFontSize;
+                trialTimerText.fontStyle = FontStyles.Bold;
+                trialTimerText.alignment = TextAlignmentOptions.Center;
+                trialTimerText.color = trialTimerColor;
+                trialTimerText.outlineColor =
+                    new Color32(12, 28, 31, 230);
+                trialTimerText.outlineWidth = 0.18f;
+                trialTimerText.raycastTarget = false;
+                timerObject.SetActive(false);
+            }
+        }
+
+#if UNITY_EDITOR
+        public void BakeTutorialPresentationForEditor()
+        {
+            Canvas canvas = actorLayer == null
+                ? null : actorLayer.GetComponentInParent<Canvas>();
+            if (canvas == null) return;
+            BuildTutorialPresentation(
+                canvas.transform as RectTransform);
+            UnityEditor.EditorUtility.SetDirty(this);
+            if (rulesOverlay != null)
+                UnityEditor.EditorUtility.SetDirty(rulesOverlay);
+            if (trialTimerText != null)
+                UnityEditor.EditorUtility.SetDirty(trialTimerText);
+        }
+#endif
+
+        private static TextMeshProUGUI CreateTutorialText(
+            RectTransform parent, string objectName, string content,
+            TMP_FontAsset font, float size, Color color,
+            Vector2 anchorMin, Vector2 anchorMax, FontStyles style)
+        {
+            GameObject textObject = new GameObject(
+                objectName, typeof(RectTransform),
+                typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            RectTransform rect = textObject.GetComponent<RectTransform>();
+            rect.SetParent(parent, false);
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+            TextMeshProUGUI text =
+                textObject.GetComponent<TextMeshProUGUI>();
+            text.font = font;
+            text.text = content;
+            text.fontSize = size;
+            text.fontStyle = style;
+            text.alignment = TextAlignmentOptions.Center;
+            text.enableWordWrapping = true;
+            text.color = color;
+            text.raycastTarget = false;
+            return text;
+        }
+
+        private void RefreshPhasePresentation(GameStateData game)
+        {
+            if (game == null) return;
+            bool showingRules = game.phase == GameSimulation.PhaseRules;
+            if (rulesOverlay != null)
+            {
+                rulesOverlay.SetActive(showingRules);
+                if (showingRules) rulesOverlay.transform.SetAsLastSibling();
+            }
+            if (showingRules && tutorialRulesFooterText != null)
+            {
+                int seconds = Mathf.Max(
+                    0, Mathf.CeilToInt(game.phaseRemaining));
+                string template = string.IsNullOrEmpty(
+                    tutorialFooterTemplate)
+                    ? tutorialRulesFooter : tutorialFooterTemplate;
+                tutorialRulesFooterText.text = template.Contains("{0}")
+                    ? string.Format(template, seconds)
+                    : template;
+            }
+            if (trialTimerText != null)
+            {
+                bool showingTimer =
+                    game.phase == GameSimulation.PhaseTrial;
+                trialTimerText.gameObject.SetActive(showingTimer);
+                if (showingTimer)
+                {
+                    trialTimerText.text = "试玩  00:" +
+                        Mathf.CeilToInt(game.phaseRemaining)
+                            .ToString("00");
+                    trialTimerText.transform.SetAsLastSibling();
+                }
+            }
+
+            if (game.phase == lastPresentationPhase) return;
+            lastPresentationPhase = game.phase;
+            if (eventPresentation == null) return;
+
+            switch (game.phase)
+            {
+                case GameSimulation.PhaseTrialIntro:
+                    eventPresentation.ShowEvent(
+                        trialIntroText,
+                        new Color(1f, 0.82f, 0.25f, 1f),
+                        new Color(0.22f, 0.9f, 1f, 1f),
+                        1.55f, true);
+                    break;
+                case GameSimulation.PhaseTrialCountdown:
+                case GameSimulation.PhaseFormalCountdown:
+                    eventPresentation.PrepareCountdown();
+                    break;
+                case GameSimulation.PhaseTrial:
+                    eventPresentation.ShowEvent(
+                        eventStyle.goText,
+                        new Color(0.42f, 1f, 0.64f, 1f),
+                        new Color(0.12f, 1f, 0.76f, 1f),
+                        eventStyle.goDuration, true);
+                    break;
+                case GameSimulation.PhaseTrialEnd:
+                    if (sfxSource != null && whistleSound != null)
+                        sfxSource.PlayOneShot(whistleSound);
+                    eventPresentation.ShowEvent(
+                        trialEndText,
+                        new Color(1f, 0.54f, 0.26f, 1f),
+                        new Color(1f, 0.28f, 0.18f, 1f),
+                        2.35f, true);
+                    break;
+                case GameSimulation.PhaseFormalIntro:
+                    eventStateInitialized = false;
+                    playerEliminationStates.Clear();
+                    eventPresentation.ShowEvent(
+                        formalIntroText,
+                        new Color(1f, 0.84f, 0.3f, 1f),
+                        new Color(0.3f, 0.88f, 1f, 1f),
+                        1.55f, true);
+                    break;
+                case GameSimulation.PhaseFormal:
+                    eventPresentation.ShowEvent(
+                        eventStyle.goText,
+                        new Color(0.42f, 1f, 0.64f, 1f),
+                        new Color(0.12f, 1f, 0.76f, 1f),
+                        eventStyle.goDuration, true);
+                    break;
+            }
         }
 
         private void Update()
@@ -107,12 +412,35 @@ namespace FrogCamp.UI
             loadingSettlement = true;
             if (cadenceMusicSource != null) cadenceMusicSource.Stop();
             if (sfxSource != null) sfxSource.Stop();
+            string message = room.game.winnerRole == "disguiser"
+                ? eventStyle.disguiserVictoryText
+                : eventStyle.officerVictoryText;
+            Color textColor = room.game.winnerRole == "disguiser"
+                ? eventStyle.disguiserVictoryTextColor
+                : eventStyle.officerVictoryTextColor;
+            Color particleColor = room.game.winnerRole == "disguiser"
+                ? eventStyle.disguiserVictoryParticleColor
+                : eventStyle.officerVictoryParticleColor;
+            if (eventPresentation != null)
+                eventPresentation.ShowEvent(
+                    message, textColor, particleColor,
+                    eventStyle.endingDuration, true);
+            StartCoroutine(LoadSettlementAfterPresentation());
+        }
+
+        private System.Collections.IEnumerator LoadSettlementAfterPresentation()
+        {
+            yield return new WaitForSecondsRealtime(
+                eventStyle.endingDuration + 0.15f);
             SceneTransitionOverlay.LoadScene(CampScenes.Settlement);
         }
 
         public void BuildLayoutForEditor()
         {
 #if UNITY_EDITOR
+            eventDisplayFont =
+                UnityEditor.AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(
+                    "Assets/Fonts/No.48-\u4e0a\u9996\u4e09\u56fd\u4f53 SDF.asset");
             greenAnimations.SetTextures(
                 LoadFrogTexture("待机"), LoadFrogTexture("小跳"), LoadFrogTexture("大跳"),
                 LoadFrogTexture("伸右手"), LoadFrogTexture("伸左手"),
@@ -194,6 +522,9 @@ namespace FrogCamp.UI
             if (settingsPanel != null && settingsPanel.gameObject.activeSelf) return;
             LanRoomService service = LanRoomService.Instance;
             if (service.CurrentRoom == null || !service.CurrentRoom.inGame) return;
+            if (!GameSimulation.IsInteractivePhase(
+                    service.CurrentRoom.game))
+                return;
             if (Time.unscaledTime >= nextInputTime)
             {
                 nextInputTime = Time.unscaledTime + 0.05f;
@@ -225,6 +556,12 @@ namespace FrogCamp.UI
             roomText.text = room == null ? "离线" : "房间 " + room.code;
             statusText.text = room == null ? "当前未连接房间" : service.Status;
             if (room == null || room.game == null) return;
+            RefreshPhasePresentation(room.game);
+            if (eventPresentation != null &&
+                (room.game.phase == GameSimulation.PhaseTrialCountdown ||
+                 room.game.phase == GameSimulation.PhaseFormalCountdown))
+                eventPresentation.UpdateCountdown(
+                    room.game.countdownRemaining);
             SyncCadenceMusic(room.game);
             rhythmCommandTrack.Apply(room.game);
 
@@ -252,16 +589,70 @@ namespace FrogCamp.UI
             foreach (FrogActorView view in actorViews.Values.OrderBy(view => view.SortY))
                 view.transform.SetAsLastSibling();
 
+            DetectPresentationEvents(room.game);
+
             if (announcementText.gameObject.activeSelf)
                 PositionAnnouncementAboveOfficer(room.game);
 
             if (room.game.announcementId != lastAnnouncementId)
             {
                 lastAnnouncementId = room.game.announcementId;
-                StopAllCoroutines();
+                if (announcementRoutine != null)
+                    StopCoroutine(announcementRoutine);
                 PositionAnnouncementAboveOfficer(room.game);
-                StartCoroutine(ShowAnnouncement(room.game.announcement));
+                announcementRoutine =
+                    StartCoroutine(ShowAnnouncement(room.game.announcement));
             }
+        }
+
+        private void DetectPresentationEvents(GameStateData game)
+        {
+            int progress = game.tasks == null
+                ? 0 : game.tasks.progressPercent;
+            if (!eventStateInitialized)
+            {
+                lastTaskProgress = progress;
+                foreach (GameActorData player in game.players.Where(
+                    actor => !actor.npc))
+                    playerEliminationStates[player.id] = player.eliminated;
+                eventStateInitialized = true;
+                return;
+            }
+
+            if (lastTaskProgress < 50 && progress >= 50)
+                ShowProgressMilestone(50);
+            if (lastTaskProgress < 80 && progress >= 80)
+                ShowProgressMilestone(80);
+            lastTaskProgress = progress;
+
+            foreach (GameActorData player in game.players.Where(
+                actor => !actor.npc))
+            {
+                bool wasEliminated;
+                playerEliminationStates.TryGetValue(
+                    player.id, out wasEliminated);
+                if (!wasEliminated && player.eliminated &&
+                    eventPresentation != null)
+                {
+                    eventPresentation.ShowEvent(
+                        string.Format(eventStyle.capturedTemplate,
+                            player.name),
+                        eventStyle.capturedTextColor,
+                        eventStyle.capturedParticleColor,
+                        eventStyle.normalDuration, true);
+                }
+                playerEliminationStates[player.id] = player.eliminated;
+            }
+        }
+
+        private void ShowProgressMilestone(int percent)
+        {
+            if (eventPresentation == null) return;
+            eventPresentation.ShowEvent(
+                string.Format(eventStyle.progressTemplate, percent),
+                eventStyle.progressTextColor,
+                eventStyle.progressParticleColor,
+                eventStyle.normalDuration, true);
         }
 
         private void PositionAnnouncementAboveOfficer(GameStateData game)
@@ -595,6 +986,14 @@ namespace FrogCamp.UI
 
         private void SyncCadenceMusic(GameStateData game)
         {
+            if (!GameSimulation.IsInteractivePhase(game) || game.ended)
+            {
+                if (cadenceMusicSource != null &&
+                    cadenceMusicSource.isPlaying)
+                    cadenceMusicSource.Stop();
+                cadenceMusicStarted = false;
+                return;
+            }
             if (!GameSimulation.IsDanceSequenceActive(game) &&
                 musicWaveform != null)
                 musicWaveform.SetMusicTime(game.musicTime);

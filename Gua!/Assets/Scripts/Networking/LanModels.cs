@@ -54,6 +54,11 @@ namespace FrogCamp.Networking
         public float specialMusicTime;
         public int nextDanceBeat;
         public List<string> danceCommands = new List<string>();
+        public string phase = "rules";
+        public int phaseVersion;
+        public float phaseRemaining;
+        public bool tutorialStarted;
+        public float countdownRemaining;
         public bool ended;
         public string winnerRole;
         public TaskStateData tasks;
@@ -103,6 +108,7 @@ namespace FrogCamp.Networking
         public float nextWhistleAt;
         public int officerNpcMistakeCount;
         public float nextDecisionAt;
+        public float trialRespawnAt;
         public int assemblySlot = -1;
         public float assemblyBlockedTime;
     }
