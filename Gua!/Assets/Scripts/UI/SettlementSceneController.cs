@@ -19,6 +19,7 @@ namespace FrogCamp.UI
         [SerializeField] private Texture2D greenDeath;
         [SerializeField] private Texture2D pinkSalute;
         [SerializeField] private Texture2D pinkDeath;
+        [SerializeField] private AudioClip victoryMusic;
         [SerializeField] private Color victoryTextColor =
             new Color32(255, 205, 62, 255);
         [SerializeField] private Color defeatTextColor =
@@ -26,9 +27,11 @@ namespace FrogCamp.UI
 
         private readonly List<AnimatedResultFrog> animatedFrogs =
             new List<AnimatedResultFrog>();
+        private const string MusicVolumeKey = "FrogCamp.MusicVolume";
 
         private void Awake()
         {
+            PlayVictoryMusic();
             if (backButton == null)
                 backButton = GetComponentInChildren<Button>(true);
             if (backButton != null)
@@ -41,6 +44,25 @@ namespace FrogCamp.UI
                 Debug.LogError("Settlement scene is missing its back button.");
             }
             BuildResults();
+        }
+
+        private void PlayVictoryMusic()
+        {
+            if (victoryMusic == null)
+            {
+                Debug.LogWarning("Settlement scene is missing its victory music.");
+                return;
+            }
+
+            AudioSource musicSource = GetComponent<AudioSource>();
+            if (musicSource == null)
+                musicSource = gameObject.AddComponent<AudioSource>();
+            musicSource.clip = victoryMusic;
+            musicSource.playOnAwake = false;
+            musicSource.loop = true;
+            musicSource.spatialBlend = 0f;
+            musicSource.volume = PlayerPrefs.GetFloat(MusicVolumeKey, 0.3f);
+            musicSource.Play();
         }
 
         private void Update()

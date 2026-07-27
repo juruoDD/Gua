@@ -2568,5 +2568,6 @@ MonoBehaviour:
   greenDeath: {fileID: 2800000, guid: 6ff1f0f5e75ac8a488751f8aa258764d, type: 3}
   pinkSalute: {fileID: 2800000, guid: 78f76f0b159b4e6aa1ed68ad68cf142e, type: 3}
   pinkDeath: {fileID: 2800000, guid: d7416310a7aa4c44b1978aff66273f36, type: 3}
+  victoryMusic: {fileID: 8300000, guid: 46fcae442ab04b5b9db924a083bcf394, type: 3}
   victoryTextColor: {r: 1, g: 0.8039216, b: 0.24313726, a: 1}
   defeatTextColor: {r: 0.74509805, g: 0.22745098, b: 0.2901961, a: 1}
